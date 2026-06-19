@@ -41,7 +41,7 @@ class EmailService:
         subject: str,
         body: str,
         body_html: Optional[str] = None,
-        from_name: str = "Agent 投研助手",
+        from_name: str = "StockMemos",
     ) -> bool:
         """发送邮件
 

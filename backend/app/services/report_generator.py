@@ -67,7 +67,7 @@ def generate_memo_report(memos: List[Dict[str, Any]], watchlist: List[Dict[str, 
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Agent 投研助手 — 自选股备忘录</title>
+    <title>StockMemos — 自选股备忘录</title>
     <link>http://localhost:8501</link>
     <description>基于多Agent协作的智能投研备忘录 RSS 订阅</description>
     <language>zh-CN</language>
@@ -150,7 +150,7 @@ def generate_strategy_report(signals: List[Dict[str, Any]], strategies: List[Dic
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Agent 投研助手 — 策略信号</title>
+    <title>StockMemos — 策略信号</title>
     <link>http://localhost:8501</link>
     <description>策略交易信号 RSS 订阅</description>
     <language>zh-CN</language>

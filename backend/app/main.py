@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from app.routers import health, portfolio, watchlist, event_node, analyze, strategy, output
 
 app = FastAPI(
-    title="Agent股票交易决策系统",
+    title="StockMemos",
     description="基于多Agent协作的智能投研助手",
     version="0.1.0",
 )

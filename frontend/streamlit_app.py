@@ -10,13 +10,13 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Agent 股票交易决策系统",
+    page_title="StockMemos",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-st.sidebar.title("📊 Agent 投研助手")
+st.sidebar.title("📊 StockMemos")
 st.sidebar.markdown("---")
 
 st.sidebar.markdown("""
