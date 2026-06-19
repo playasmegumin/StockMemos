@@ -10,8 +10,8 @@ import plotly.express as px
 from datetime import datetime
 
 st.set_page_config(
-    page_title="StockMemos",
-    page_icon="📊",
+    page_title="持仓总览",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -40,7 +40,27 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── 侧边栏 ─────────────────────────────
+st.sidebar.markdown("""
+    <style>
+    /* 隐藏默认页面导航 */
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.sidebar.title("📊 StockMemos")
+
+# 自定义页面导航
+st.sidebar.page_link("streamlit_app.py", label="📈 持仓总览")
+st.sidebar.page_link("pages/2_个股分析.py", label="🔍 个股分析")
+st.sidebar.page_link("pages/2_自选股与备忘录.py", label="📋 自选股与备忘录")
+st.sidebar.page_link("pages/3_事件时间线.py", label="📅 事件时间线")
+st.sidebar.page_link("pages/3_事件追踪.py", label="📌 事件追踪")
+st.sidebar.page_link("pages/4_策略与回测.py", label="🎯 策略与回测")
+st.sidebar.page_link("pages/4_策略配置.py", label="⚙️ 策略配置")
+st.sidebar.page_link("pages/5_设置与投递.py", label="📡 设置与投递")
+
 st.sidebar.markdown("---")
 
 st.sidebar.markdown("""
