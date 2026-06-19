@@ -7,6 +7,11 @@
     - 回测入口
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import streamlit as st
 
 # ── 全局 CSS：页面宽度完全铺满（每个页面独立注入）──
@@ -31,6 +36,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+render_sidebar()
+
 
 st.title("⚙️ 策略与回测")
 st.caption("自定义技术指标策略并验证历史表现")

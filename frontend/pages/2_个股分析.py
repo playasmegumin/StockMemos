@@ -6,6 +6,11 @@
     - 结果展示：多空辩论、事件影响、估值判定
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import streamlit as st
 
 # ── 全局 CSS：页面宽度完全铺满（每个页面独立注入）──
@@ -30,6 +35,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+render_sidebar()
+
 
 st.title("🔍 个股深度分析")
 st.caption("AI 驱动的多Agent协作分析")

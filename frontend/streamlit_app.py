@@ -3,6 +3,11 @@
 设置页面全局配置、侧边栏导航，以及持仓总览 Dashboard。
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import requests
 import pandas as pd
 import streamlit as st
@@ -39,6 +44,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+render_sidebar()
+
+
 # ── 侧边栏 ─────────────────────────────
 st.sidebar.markdown("""
     <style>
@@ -53,13 +61,6 @@ st.sidebar.title("📊 StockMemos")
 
 # 自定义页面导航
 st.sidebar.page_link("streamlit_app.py", label="📈 持仓总览")
-st.sidebar.page_link("pages/2_个股分析.py", label="🔍 个股分析")
-st.sidebar.page_link("pages/2_自选股与备忘录.py", label="📋 自选股与备忘录")
-st.sidebar.page_link("pages/3_事件时间线.py", label="📅 事件时间线")
-st.sidebar.page_link("pages/3_事件追踪.py", label="📌 事件追踪")
-st.sidebar.page_link("pages/4_策略与回测.py", label="🎯 策略与回测")
-st.sidebar.page_link("pages/4_策略配置.py", label="⚙️ 策略配置")
-st.sidebar.page_link("pages/5_设置与投递.py", label="📡 设置与投递")
 
 st.sidebar.markdown("---")
 

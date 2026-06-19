@@ -7,6 +7,11 @@
     4. 导出报告（Markdown/JSON）
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import requests
 import streamlit as st
 
@@ -32,6 +37,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+render_sidebar()
+
 
 API_BASE = "http://backend:8080/api"
 

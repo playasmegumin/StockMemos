@@ -7,6 +7,11 @@
     4. 添加事件表单
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import requests
 import streamlit as st
 from datetime import datetime
@@ -33,6 +38,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+render_sidebar()
+
 
 API_BASE = "http://backend:8080/api"
 

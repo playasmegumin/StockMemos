@@ -7,6 +7,11 @@
     4. 回测结果展示：收益曲线、交易记录、关键指标
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import requests
 import streamlit as st
 import json
@@ -33,6 +38,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+render_sidebar()
+
 
 API_BASE = "http://backend:8080/api"
 

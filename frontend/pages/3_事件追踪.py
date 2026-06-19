@@ -6,6 +6,11 @@
     - 事件与个股关联展示
 """
 
+import sys
+sys.path.append("/app")
+from app.components.sidebar import render_sidebar
+
+
 import streamlit as st
 from datetime import datetime
 
@@ -31,6 +36,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+render_sidebar()
+
 
 st.title("📅 事件追踪")
 st.caption("跟踪重大事件对持仓的影响")
