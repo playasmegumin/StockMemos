@@ -9,6 +9,29 @@
 
 import streamlit as st
 
+# ── 全局 CSS：页面宽度完全铺满（每个页面独立注入）──
+st.markdown("""
+    <style>
+    .stApp .block-container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    [data-testid="stSidebar"] {
+        width: 16rem !important;
+        min-width: 16rem !important;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    .stDataFrame td {
+        white-space: nowrap !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("⚙️ 策略与回测")
 st.caption("自定义技术指标策略并验证历史表现")
 
