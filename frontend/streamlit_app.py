@@ -16,16 +16,28 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── 全局 CSS：页面宽度铺满 ─────────────────
+# ── 全局 CSS：页面宽度完全铺满 ─────────────────
 st.markdown("""
     <style>
-    .main .block-container {
-        max-width: 100%;
-        padding-left: 3rem;
-        padding-right: 3rem;
+    /* 主内容区：移除最大宽度限制，完全铺满 */
+    .stApp .block-container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
     }
+    /* 侧边栏收窄（默认 21rem=336px 太宽） */
+    [data-testid="stSidebar"] {
+        width: 16rem !important;
+        min-width: 16rem !important;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    /* 表格不换行 */
     .stDataFrame td {
-        white-space: nowrap;
+        white-space: nowrap !important;
     }
     </style>
 """, unsafe_allow_html=True)
