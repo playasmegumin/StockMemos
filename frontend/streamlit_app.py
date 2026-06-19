@@ -16,6 +16,20 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── 全局 CSS：页面宽度铺满 ─────────────────
+st.markdown("""
+    <style>
+    .main .block-container {
+        max-width: 100%;
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }
+    .stDataFrame td {
+        white-space: nowrap;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.sidebar.title("📊 StockMemos")
 st.sidebar.markdown("---")
 

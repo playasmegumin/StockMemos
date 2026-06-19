@@ -17,11 +17,19 @@ from datetime import datetime
 API_BASE = "http://backend:8080/api"
 
 def _api(method: str, path: str, **kwargs):
-    """统一 API 调用"""
+    """统一 API 调用
+    
+    特殊处理：
+    - 204 No Content → 返回 True（无响应体）
+    - 空响应 → 返回 True
+    """
     url = f"{API_BASE}{path}"
     try:
         resp = requests.request(method, url, timeout=30, **kwargs)
         resp.raise_for_status()
+        # 处理 204 No Content 或其他空响应
+        if resp.status_code == 204 or not resp.text:
+            return True
         return resp.json()
     except Exception as e:
         st.error(f"API 请求失败: {e}")
