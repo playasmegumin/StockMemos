@@ -13,7 +13,21 @@ from app.config import settings
 from app.database import Base
 
 # 导入所有模型，确保 Alembic 能发现它们
-from app.models import portfolio  # noqa
+from app.models import (  # noqa
+    Portfolio,
+    TradePoint,
+    Event,
+    EventImpact,
+    AnalysisReport,
+    AgentLog,
+    Strategy,
+    StrategySignal,
+    Watchlist,
+    InvestmentMemo,
+    MemoEvent,
+    EventNode,
+    EventPrediction,
+)
 
 # this is the Alembic Config object
 config = context.config

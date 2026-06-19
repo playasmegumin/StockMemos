@@ -30,15 +30,32 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     command: >
       bash -c "
-        until pg_isready -h db -p 5432 -U trading; do
-          echo 'Waiting for DB...'
-          sleep 2
-        done
         alembic upgrade head
         uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
       "
+
+  frontend:
+    build: ./frontend
+    container_name: trading-frontend
+    env_file:
+      - .env
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./frontend:/app
+    environment:
+      - API_BASE=http://backend:8080/api
 
 volumes:
   postgres_data:
