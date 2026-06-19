@@ -23,8 +23,8 @@ st.markdown("""
     .stApp .block-container {
         max-width: 100% !important;
         width: 100% !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
     }
     /* 侧边栏收窄（默认 21rem=336px 太宽） */
     [data-testid="stSidebar"] {
@@ -32,8 +32,8 @@ st.markdown("""
         min-width: 16rem !important;
     }
     [data-testid="stSidebar"] > div:first-child {
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
     /* 表格不换行 */
     .stDataFrame td {
