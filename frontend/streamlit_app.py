@@ -188,13 +188,14 @@ if positions:
         cols[0].markdown(f"**{pos['stock_code']}** {pos.get('stock_name', '')}")
 
         if cols[1].button("🔍 分析", key=f"analyze_{pos['id']}"):
+            st.session_state.analyze_stock_code = pos['stock_code']
             st.switch_page("pages/2_个股分析.py")
 
         if cols[2].button("➕ 加仓", key=f"add_{pos['id']}"):
-            st.info(f"加仓 {pos['stock_code']} — 功能开发中")
+            st.session_state.add_position_id = pos['id']
 
         if cols[3].button("➖ 减仓", key=f"reduce_{pos['id']}"):
-            st.info(f"减仓 {pos['stock_code']} — 功能开发中")
+            st.session_state.reduce_position_id = pos['id']
 
         if cols[4].button("🗑️ 删除", key=f"del_{pos['id']}"):
             if _api("DELETE", f"/portfolio/{pos['id']}"):
@@ -202,6 +203,74 @@ if positions:
                 st.rerun()
             else:
                 st.error("删除失败")
+
+    # ── 加仓/减仓表单 ─────────────────────────
+    # 加仓
+    add_id = st.session_state.get("add_position_id")
+    if add_id:
+        pos = next((p for p in positions if p['id'] == add_id), None)
+        if pos:
+            with st.container(border=True):
+                st.markdown(f"**➕ 加仓 {pos['stock_code']}**")
+                c1, c2 = st.columns(2)
+                add_qty = c1.number_input("加仓数量", min_value=1, value=100, step=100, key="add_qty")
+                add_price = c2.number_input("加仓价格", min_value=0.01, value=pos['latest_price'] or pos['cost_price'], step=0.01, format="%.2f", key="add_price")
+                c3, c4 = st.columns(2)
+                if c3.button("✅ 确认加仓", key="confirm_add"):
+                    # 新成本价 = (原成本×原数量 + 加仓价格×加仓数量) / 总数量
+                    total_qty = pos['quantity'] + add_qty
+                    new_cost = (pos['cost_price'] * pos['quantity'] + add_price * add_qty) / total_qty
+                    result = _api("PUT", f"/portfolio/{pos['id']}", json={
+                        "stock_code": pos['stock_code'],
+                        "stock_name": pos.get('stock_name'),
+                        "quantity": total_qty,
+                        "cost_price": new_cost,
+                        "build_date": pos['build_date'],
+                        "status": "holding",
+                    })
+                    if result:
+                        st.success(f"✅ 已加仓 {add_qty} 股，新成本价 ¥{new_cost:.2f}")
+                        del st.session_state["add_position_id"]
+                        st.rerun()
+                if c4.button("❌ 取消", key="cancel_add"):
+                    del st.session_state["add_position_id"]
+                    st.rerun()
+
+    # 减仓
+    reduce_id = st.session_state.get("reduce_position_id")
+    if reduce_id:
+        pos = next((p for p in positions if p['id'] == reduce_id), None)
+        if pos:
+            with st.container(border=True):
+                st.markdown(f"**➖ 减仓 {pos['stock_code']}**")
+                reduce_qty = st.number_input("减仓数量", min_value=1, max_value=pos['quantity'], value=min(100, pos['quantity']), step=100, key="reduce_qty")
+                c1, c2 = st.columns(2)
+                if c1.button("✅ 确认减仓", key="confirm_reduce"):
+                    remaining = pos['quantity'] - reduce_qty
+                    if remaining <= 0:
+                        # 清仓
+                        if _api("DELETE", f"/portfolio/{pos['id']}"):
+                            st.success(f"✅ 已清仓 {pos['stock_code']}")
+                            del st.session_state["reduce_position_id"]
+                            st.rerun()
+                    else:
+                        # 部分减仓，成本价不变
+                        result = _api("PUT", f"/portfolio/{pos['id']}", json={
+                            "stock_code": pos['stock_code'],
+                            "stock_name": pos.get('stock_name'),
+                            "quantity": remaining,
+                            "cost_price": pos['cost_price'],
+                            "build_date": pos['build_date'],
+                            "status": "holding",
+                        })
+                        if result:
+                            st.success(f"✅ 已减仓 {reduce_qty} 股，剩余 {remaining} 股")
+                            del st.session_state["reduce_position_id"]
+                            st.rerun()
+                if c2.button("❌ 取消", key="cancel_reduce"):
+                    del st.session_state["reduce_position_id"]
+                    st.rerun()
+
 else:
     st.info("暂无持仓记录，请使用下方表单添加。")
 

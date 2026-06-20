@@ -334,7 +334,7 @@ with right:
         
         # ── 6. Agent 触发按钮 ─────────────────
         st.subheader("🤖 Agent 智能分析")
-        st.caption("点击按钮触发 Agent 分析，自动更新备忘录对应字段")
+        st.caption("点击按钮触发 Agent 分析，自动更新备忘录对应字段。分析结果在页面底部多标签页展示。")
         
         ac1, ac2, ac3 = st.columns(3)
         
@@ -342,71 +342,147 @@ with right:
         if ac1.button("🔍 基本面分析", use_container_width=True, type="primary", key=f"agent_fund_{selected_code}"):
             with st.spinner("FundamentalAgent 分析中..."):
                 result = _api("POST", f"/analyze/{selected_code}/fundamental")
-            if result:
-                if result.get("status") == "success":
-                    st.success("✅ 基本面分析完成，备忘录已更新")
-                    with st.expander("📋 查看分析详情"):
-                        r = result.get("result", {})
-                        st.markdown(f"**估值方法**: {r.get('valuation_method', 'N/A')}")
-                        st.markdown(f"**目标价**: {r.get('target_price', 'N/A')}")
-                        st.markdown(f"**置信度**: {r.get('confidence', 'N/A')}")
-                        st.markdown("**业务分析**:")
-                        st.markdown(r.get("business_scope", "") or "无")
-                        st.markdown("**分析逻辑**:")
-                        st.markdown(r.get("reasoning", "") or "无")
-                    st.rerun()
-                else:
-                    st.error(f"分析失败: {result.get('result', {}).get('error', '未知错误')}")
+            if result and result.get("status") == "success":
+                st.session_state[f"fundamental_result_{selected_code}"] = result
+                st.success("✅ 基本面分析完成")
+            else:
+                st.error(f"分析失败: {result.get('result', {}).get('error', '未知错误')}")
         
         # NewsAgent
         if ac2.button("📰 消息分析", use_container_width=True, type="primary", key=f"agent_news_{selected_code}"):
             with st.spinner("NewsAgent 分析中（含多空辩论）..."):
                 result = _api("POST", f"/analyze/{selected_code}/news")
-            if result:
-                if result.get("status") == "success":
-                    st.success("✅ 消息分析完成，备忘录已更新")
-                    with st.expander("📋 查看分析详情"):
-                        r = result.get("result", {})
-                        st.markdown(f"**综合判断**: {r.get('consensus', 'N/A')}")
-                        st.markdown(f"**推荐**: {r.get('recommendation', 'N/A')}")
-                        st.markdown("**看多理由**:")
-                        bull = r.get("bull_case", {})
-                        for arg in bull.get("arguments", []):
-                            st.markdown(f"- {arg}")
-                        st.markdown("**看空理由**:")
-                        bear = r.get("bear_case", {})
-                        for arg in bear.get("arguments", []):
-                            st.markdown(f"- {arg}")
-                        st.markdown("**事件列表**:")
-                        for ev in r.get("events", []):
-                            tag_color = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}.get(ev.get("impact_tag"), "⚪")
-                            st.markdown(f"- {tag_color} **{ev.get('name')}** ({ev.get('expected_date', '待定')})")
-                        st.markdown("**分析逻辑**:")
-                        st.markdown(r.get("reasoning", "") or "无")
-                    st.rerun()
-                else:
-                    st.error(f"分析失败: {result.get('result', {}).get('error', '未知错误')}")
+            if result and result.get("status") == "success":
+                st.session_state[f"news_result_{selected_code}"] = result
+                st.success("✅ 消息分析完成")
+            else:
+                st.error(f"分析失败: {result.get('result', {}).get('error', '未知错误')}")
         
         # TechnicalAgent
         if ac3.button("📈 技术分析", use_container_width=True, type="primary", key=f"agent_tech_{selected_code}"):
             with st.spinner("TechnicalAgent 分析中..."):
                 result = _api("POST", f"/analyze/{selected_code}/technical")
-            if result:
-                if result.get("status") == "success":
-                    st.success("✅ 技术分析完成，备忘录已更新")
-                    with st.expander("📋 查看分析详情"):
-                        r = result.get("result", {})
-                        st.markdown(f"**短线**: {r.get('short_trend', 'N/A')}")
-                        st.markdown(f"**中线**: {r.get('mid_trend', 'N/A')}")
-                        st.markdown(f"**长期**: {r.get('long_trend', 'N/A')}")
-                        st.markdown(f"**置信度**: {r.get('confidence', 'N/A')}")
-                        kl = r.get("key_levels", {})
-                        st.markdown(f"**支撑位**: {kl.get('support', 'N/A')}")
-                        st.markdown(f"**阻力位**: {kl.get('resistance', 'N/A')}")
-                        st.markdown("**趋势逻辑**:")
-                        st.markdown(r.get("trend_logic", "") or "无")
-                        st.markdown("**分析逻辑**:")
-                        st.markdown(r.get("reasoning", "") or "无")
-                    st.rerun()
+            if result and result.get("status") == "success":
+                st.session_state[f"technical_result_{selected_code}"] = result
+                st.success("✅ 技术分析完成")
+            else:
+                st.error(f"分析失败: {result.get('result', {}).get('error', '未知错误')}")
+        
+        # ── 7. 分析结果展示（多标签页） ──────────
+        st.markdown("---")
+        st.subheader("📊 Agent 分析报告")
+        
+        fundamental_result = st.session_state.get(f"fundamental_result_{selected_code}")
+        news_result = st.session_state.get(f"news_result_{selected_code}")
+        technical_result = st.session_state.get(f"technical_result_{selected_code}")
+        
+        if fundamental_result or news_result or technical_result:
+            tabs = st.tabs(["💰 基本面", "📰 消息多空辩论", "📈 技术分析", "📝 提示词"])
+            
+            # Tab 1: 基本面
+            with tabs[0]:
+                if fundamental_result and fundamental_result.get("status") == "success":
+                    r = fundamental_result.get("result", {})
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("估值方法", r.get("valuation_method", "N/A"))
+                    c2.metric("目标价", f"¥{r.get('target_price', 'N/A')}" if r.get("target_price") else "N/A")
+                    c3.metric("置信度", f"{r.get('confidence', 'N/A')}")
+                    st.markdown("**业务分析**:")
+                    st.markdown(r.get("business_scope", "无") or "无")
+                    st.markdown("**分析逻辑**:")
+                    st.markdown(r.get("reasoning", "无") or "无")
                 else:
-                    st.error(f"分析失败: {result.get('result', {}).get('error', '未知错误')}")
+                    st.info("尚未完成基本面分析，请点击上方 🔍 基本面分析 按钮")
+            
+            # Tab 2: 消息多空辩论
+            with tabs[1]:
+                if news_result and news_result.get("status") == "success":
+                    r = news_result.get("result", {})
+                    st.markdown(f"**综合判断**: {r.get('consensus', 'N/A')}")
+                    st.markdown(f"**推荐**: {r.get('recommendation', 'N/A')}")
+                    st.markdown("---")
+                    
+                    bull = r.get("bull_case", {})
+                    bear = r.get("bear_case", {})
+                    
+                    col_bull, col_bear = st.columns(2)
+                    with col_bull:
+                        st.markdown("### 🟢 看多观点")
+                        for arg in bull.get("arguments", []):
+                            st.markdown(f"- {arg}")
+                        st.markdown(f"*置信度: {bull.get('confidence', 'N/A')}*")
+                    with col_bear:
+                        st.markdown("### 🔴 看空观点")
+                        for arg in bear.get("arguments", []):
+                            st.markdown(f"- {arg}")
+                        st.markdown(f"*置信度: {bear.get('confidence', 'N/A')}*")
+                    
+                    st.markdown("---")
+                    st.markdown("**事件列表**:")
+                    for ev in r.get("events", []):
+                        tag_color = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}.get(ev.get("impact_tag"), "⚪")
+                        st.markdown(f"- {tag_color} **{ev.get('name')}** ({ev.get('expected_date', '待定')})")
+                    st.markdown("**分析逻辑**:")
+                    st.markdown(r.get("reasoning", "无") or "无")
+                else:
+                    st.info("尚未完成消息分析，请点击上方 📰 消息分析 按钮")
+            
+            # Tab 3: 技术分析
+            with tabs[2]:
+                if technical_result and technical_result.get("status") == "success":
+                    r = technical_result.get("result", {})
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("短线趋势", r.get("short_trend", "N/A"))
+                    c2.metric("中线趋势", r.get("mid_trend", "N/A"))
+                    c3.metric("长期趋势", r.get("long_trend", "N/A"))
+                    c4, c5 = st.columns(2)
+                    c4.metric("支撑位", r.get("key_levels", {}).get("support", "N/A"))
+                    c5.metric("阻力位", r.get("key_levels", {}).get("resistance", "N/A"))
+                    st.markdown("**趋势逻辑**:")
+                    st.markdown(r.get("trend_logic", "无") or "无")
+                else:
+                    st.info("尚未完成技术分析，请点击上方 📈 技术分析 按钮")
+            
+            # Tab 4: 提示词
+            with tabs[3]:
+                st.markdown("### FundamentalAgent 系统提示词")
+                st.code("""你是一个专业的股票基本面分析师。请基于提供的财务数据，给出以下分析结果（必须返回 JSON）：
+{
+    "target_price": "目标股价（数字，保留2位小数）",
+    "valuation_method": "估值方法，如PE/DCF/可比公司",
+    "business_scope": "业务范围、供需关系、产业链生态位的简要分析（100-300字）",
+    "confidence": "置信度，0.00-1.00",
+    "reasoning": "做出估值判断的核心逻辑（200-500字）"
+}
+注意：如果数据不足，target_price 可以为 null，confidence 设为 0.5""", language="json")
+                
+                st.markdown("### NewsBullAgent 系统提示词")
+                st.code("""你是一个乐观派股票分析师。请基于已知信息，从看多角度分析股票。列出所有潜在的利好因素和催化剂。
+{"arguments": ["看多理由1", "看多理由2"], "confidence": 0.0-1.0, "reasoning": "分析过程"}""", language="json")
+                
+                st.markdown("### NewsBearAgent 系统提示词")
+                st.code("""你是一个谨慎派股票分析师。请基于已知信息，从看空角度分析股票。列出所有潜在的风险因素和利空催化剂。
+{"arguments": ["看空理由1", "看空理由2"], "confidence": 0.0-1.0, "reasoning": "分析过程"}""", language="json")
+                
+                st.markdown("### NewsRefereeAgent 系统提示词")
+                st.code("""你是一个中立的裁判分析师。请综合看多和看空观点，给出客观的综合判断。
+{
+    "events": [{"name": "事件名", "impact_tag": "bullish/bearish/neutral", "expected_date": "YYYY-MM-DD", "reasoning": "..."}],
+    "consensus": "综合判断",
+    "recommendation": "buy/hold/sell/watch",
+    "reasoning": "分析过程"
+}""", language="json")
+                
+                st.markdown("### TechnicalAgent 系统提示词")
+                st.code("""你是一个专业的技术分析专家。请基于提供的K线数据，给出趋势判断（必须返回 JSON）：
+{
+    "short_trend": "短线趋势：up/down/sideways",
+    "mid_trend": "中线趋势：up/down/sideways",
+    "long_trend": "长期趋势：up/down/sideways",
+    "trend_logic": "趋势判断核心逻辑（200-400字）",
+    "key_levels": {"support": "支撑位", "resistance": "阻力位"},
+    "confidence": "置信度 0.00-1.00",
+    "reasoning": "分析过程"
+}""", language="json")
+        else:
+            st.info("点击上方 Agent 按钮开始分析，结果将在此展示。")
