@@ -67,3 +67,7 @@ batch_update.py
 init_command.md
 requirements.md
 system_prompt.md
+
+# AI agent tooling (project-local config, not project code)
+.opencode/
+openspec/
