@@ -30,6 +30,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
+      - ./test:/app/test
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
       interval: 10s

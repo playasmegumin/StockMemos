@@ -16,6 +16,10 @@ from app.database import Base
 from app.models import (  # noqa
     Stock,
     Transaction,
+    StockAnalyze,
+    Report,
+    TpSlPoint,
+    StockTag,
 )
 
 # this is the Alembic Config object

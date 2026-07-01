@@ -12,6 +12,7 @@
   .container { max-width: 1200px; margin: 0 auto; }
   .section { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
   .section h2 { margin: 0 0 16px 0; font-size: 18px; color: #1a1a2e; border-left: 4px solid #1a1a2e; padding-left: 10px; }
+  .section h3 { margin: 0 0 12px 0; font-size: 15px; color: #444; }
   .flex-row { display: flex; gap: 20px; flex-wrap: wrap; }
   .col-6 { flex: 1 1 48%; min-width: 300px; }
   .form-group { margin-bottom: 12px; }
@@ -21,12 +22,14 @@
   textarea { resize: vertical; min-height: 60px; }
   .btn { background: #1a1a2e; color: #fff; border: none; cursor: pointer; padding: 10px 16px; border-radius: 6px; font-weight: 600; width: auto; transition: opacity 0.2s; }
   .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-danger { background: #e74c3c; }
   .btn-success { background: #27ae60; }
   .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .result-box { background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 12px; margin-top: 12px; font-family: "SF Mono", Consolas, monospace; font-size: 13px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; color: #333; }
   .result-box.error { background: #fff5f5; border-color: #feb2b2; color: #c53030; }
   .result-box.success { background: #f0fff4; border-color: #9ae6b4; color: #22543d; }
+  .result-box.loading { background: #fffbea; border-color: #f6e05e; color: #744210; }
   .summary-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
   .summary-table th, .summary-table td { padding: 8px 10px; border: 1px solid #e1e4e8; text-align: left; }
   .summary-table th { background: #f5f6f8; font-weight: 600; }
@@ -34,6 +37,7 @@
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
   .badge-positive { background: #c6f6d5; color: #22543d; }
   .badge-negative { background: #fed7d7; color: #c53030; }
+  .badge-info { background: #bee3f8; color: #2a4365; }
   .hint { font-size: 12px; color: #888; margin-top: 4px; }
   hr { border: none; border-top: 1px solid #e1e4e8; margin: 20px 0; }
   .quick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -44,7 +48,7 @@
 
 <div class="container">
   <h1>后端 API 手动测试页面</h1>
-  <p class="subtitle">Stock & Transaction CRUD 测试 | 后端地址: <code>http://localhost:8080</code></p>
+  <p class="subtitle">Stock / Transaction / Stock-Analyze CRUD 测试 | 后端地址: <code>http://localhost:8080</code></p>
 
   <!-- 快捷操作 -->
   <div class="section">
@@ -163,6 +167,167 @@
     <div id="transactionsTable"></div>
   </div>
 
+  <!-- 个股分析 -->
+  <div class="section">
+    <h2>个股分析 (Stock Analyze)</h2>
+    <div class="flex-row">
+      <div class="col-6">
+        <h3>获取或创建分析</h3>
+        <div class="form-group">
+          <label>个股 ID (stock_id)</label>
+          <input type="text" id="saStockId" placeholder="粘贴个股 ID">
+          <p class="hint">GET /api/stock-analyze/stock/{stock_id} — 不存在则自动创建</p>
+        </div>
+        <div class="btn-group">
+          <button class="btn" id="btnGetOrCreateSA" onclick="getOrCreateStockAnalyze()">获取或创建分析</button>
+        </div>
+      </div>
+      <div class="col-6">
+        <h3>更新基本面数据</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="saId" placeholder="粘贴分析 ID">
+          <p class="hint">PUT /api/stock-analyze/{id}</p>
+        </div>
+        <div class="form-group">
+          <label>基本面数据 (JSON)</label>
+          <textarea id="saFundamentals" placeholder='{"pe": 25.5, "pb": 3.2, "market_cap": 2000000000000}' style="min-height:100px"></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-success" id="btnUpdateSA" onclick="updateStockAnalyze()">更新基本面数据</button>
+        </div>
+      </div>
+    </div>
+    <div id="stockAnalyzeResult" class="result-box" style="display:none"></div>
+  </div>
+
+  <!-- 研究报告 -->
+  <div class="section">
+    <h2>研究报告 (Reports) <span class="badge badge-info" style="font-size:12px;vertical-align:middle;">嵌套于 Stock Analyze</span></h2>
+    <div class="flex-row">
+      <div class="col-6">
+        <h3>新建报告</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="reportAnalyzeId" placeholder="粘贴分析 ID">
+        </div>
+        <div class="form-group">
+          <label>标题 (title)</label>
+          <input type="text" id="reportTitle" placeholder="报告标题">
+        </div>
+        <div class="form-group">
+          <label>内容 (content)</label>
+          <textarea id="reportContent" placeholder="报告内容..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>生成日期 (generated_at)</label>
+          <input type="date" id="reportGeneratedAt">
+        </div>
+        <div class="btn-group">
+          <button class="btn" onclick="createReport()">创建报告</button>
+          <button class="btn" onclick="listReports()">查看列表</button>
+        </div>
+      </div>
+      <div class="col-6">
+        <h3>删除报告</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="reportAnalyzeIdDel" placeholder="粘贴分析 ID">
+        </div>
+        <div class="form-group">
+          <label>报告 ID</label>
+          <input type="text" id="reportId" placeholder="粘贴报告 ID">
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-danger" onclick="deleteReport()">删除报告</button>
+        </div>
+      </div>
+    </div>
+    <div id="reportsResult" class="result-box" style="display:none"></div>
+  </div>
+
+  <!-- TP/SL 点位 -->
+  <div class="section">
+    <h2>TP/SL 点位 <span class="badge badge-info" style="font-size:12px;vertical-align:middle;">嵌套于 Stock Analyze</span></h2>
+    <div class="flex-row">
+      <div class="col-6">
+        <h3>新建点位</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="tpSlAnalyzeId" placeholder="粘贴分析 ID">
+        </div>
+        <div class="form-group">
+          <label>价格 (price)</label>
+          <input type="number" step="0.01" id="tpSlPrice" placeholder="如 150.0">
+        </div>
+        <div class="form-group">
+          <label>标签 (label)</label>
+          <input type="text" id="tpSlLabel" placeholder="如 TP1, SL, 止盈">
+        </div>
+        <div class="form-group">
+          <label>备注 (notes)</label>
+          <input type="text" id="tpSlNotes" placeholder="可选备注">
+        </div>
+        <div class="btn-group">
+          <button class="btn" onclick="createTpSlPoint()">创建点位</button>
+          <button class="btn" onclick="listTpSlPoints()">查看列表</button>
+        </div>
+      </div>
+      <div class="col-6">
+        <h3>删除点位</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="tpSlAnalyzeIdDel" placeholder="粘贴分析 ID">
+        </div>
+        <div class="form-group">
+          <label>点位 ID</label>
+          <input type="text" id="tpSlPointId" placeholder="粘贴点位 ID">
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-danger" onclick="deleteTpSlPoint()">删除点位</button>
+        </div>
+      </div>
+    </div>
+    <div id="tpSlResult" class="result-box" style="display:none"></div>
+  </div>
+
+  <!-- Stock Tags -->
+  <div class="section">
+    <h2>个股标签 (Stock Tags) <span class="badge badge-info" style="font-size:12px;vertical-align:middle;">嵌套于 Stock Analyze</span></h2>
+    <div class="flex-row">
+      <div class="col-6">
+        <h3>新建标签</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="tagAnalyzeId" placeholder="粘贴分析 ID">
+        </div>
+        <div class="form-group">
+          <label>标签 (tag)</label>
+          <input type="text" id="stockTagValue" placeholder="如 龙头股, 消费, 高股息">
+        </div>
+        <div class="btn-group">
+          <button class="btn" onclick="createStockTag()">创建标签</button>
+          <button class="btn" onclick="listStockTags()">查看列表</button>
+        </div>
+      </div>
+      <div class="col-6">
+        <h3>删除标签</h3>
+        <div class="form-group">
+          <label>分析 ID</label>
+          <input type="text" id="tagAnalyzeIdDel" placeholder="粘贴分析 ID">
+        </div>
+        <div class="form-group">
+          <label>标签 ID</label>
+          <input type="text" id="stockTagId" placeholder="粘贴标签 ID">
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-danger" onclick="deleteStockTag()">删除标签</button>
+        </div>
+      </div>
+    </div>
+    <div id="stockTagsResult" class="result-box" style="display:none"></div>
+  </div>
+
 </div>
 
 <script>
@@ -173,6 +338,13 @@ function showResult(elId, text, isError) {
   el.style.display = 'block';
   el.textContent = typeof text === 'object' ? JSON.stringify(text, null, 2) : text;
   el.className = 'result-box ' + (isError ? 'error' : 'success');
+}
+
+function showLoading(elId, msg) {
+  const el = document.getElementById(elId);
+  el.style.display = 'block';
+  el.textContent = msg || '请求中...';
+  el.className = 'result-box loading';
 }
 
 async function request(method, path, body) {
@@ -250,7 +422,7 @@ async function fetchAllStocks() {
       <td>${s.currency}</td>
       <td>${s.position}</td>
       <td><span class="badge ${pnlClass}">${pnlText}</span></td>
-      <td><button class="btn" style="padding:4px 8px;font-size:12px;" onclick="document.getElementById('stockId').value='${s.id}';document.getElementById('txnStockId').value='${s.id}';document.getElementById('txnStockIdQuery').value='${s.id}';getStock();">查看</button></td>
+      <td><button class="btn" style="padding:4px 8px;font-size:12px;" onclick="document.getElementById('stockId').value='${s.id}';document.getElementById('txnStockId').value='${s.id}';document.getElementById('txnStockIdQuery').value='${s.id}';document.getElementById('saStockId').value='${s.id}';getStock();">查看</button></td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -338,6 +510,155 @@ async function fetchAllTransactions() {
   });
   html += '</tbody></table>';
   el.innerHTML = html;
+}
+
+// ─── Stock Analyze ───
+
+async function getOrCreateStockAnalyze() {
+  const stockId = document.getElementById('saStockId').value.trim();
+  if (!stockId) return alert('请输入个股 ID');
+  showLoading('stockAnalyzeResult', '请求中...');
+  const btn = document.getElementById('btnGetOrCreateSA');
+  btn.disabled = true;
+  try {
+    const r = await request('GET', '/api/stock-analyze/stock/' + stockId);
+    showResult('stockAnalyzeResult', r, r.status >= 300);
+    if (r.status < 300 && r.body && r.body.id) {
+      document.getElementById('saId').value = r.body.id;
+      // Auto-fill nested section analyze IDs
+      document.getElementById('reportAnalyzeId').value = r.body.id;
+      document.getElementById('reportAnalyzeIdDel').value = r.body.id;
+      document.getElementById('tpSlAnalyzeId').value = r.body.id;
+      document.getElementById('tpSlAnalyzeIdDel').value = r.body.id;
+      document.getElementById('tagAnalyzeId').value = r.body.id;
+      document.getElementById('tagAnalyzeIdDel').value = r.body.id;
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function updateStockAnalyze() {
+  const id = document.getElementById('saId').value.trim();
+  if (!id) return alert('请输入分析 ID');
+  let fundamentals;
+  try {
+    fundamentals = JSON.parse(document.getElementById('saFundamentals').value || '{}');
+  } catch (e) {
+    return alert('基本面数据 JSON 格式错误');
+  }
+  showLoading('stockAnalyzeResult', '更新中...');
+  const btn = document.getElementById('btnUpdateSA');
+  btn.disabled = true;
+  try {
+    const r = await request('PUT', '/api/stock-analyze/' + id, { fundamentals_data: fundamentals });
+    showResult('stockAnalyzeResult', r, r.status >= 300);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─── Reports ───
+
+async function listReports() {
+  const analyzeId = document.getElementById('reportAnalyzeId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  showLoading('reportsResult', '请求中...');
+  const r = await request('GET', '/api/stock-analyze/' + analyzeId + '/reports');
+  showResult('reportsResult', r, r.status >= 300);
+}
+
+async function createReport() {
+  const analyzeId = document.getElementById('reportAnalyzeId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  const title = document.getElementById('reportTitle').value.trim();
+  const content = document.getElementById('reportContent').value.trim();
+  const generated_at = document.getElementById('reportGeneratedAt').value;
+  if (!title) return alert('请输入标题');
+  if (!content) return alert('请输入内容');
+  showLoading('reportsResult', '创建中...');
+  const r = await request('POST', '/api/stock-analyze/' + analyzeId + '/reports', {
+    title, content, generated_at
+  });
+  showResult('reportsResult', r, r.status >= 300);
+}
+
+async function deleteReport() {
+  const analyzeId = document.getElementById('reportAnalyzeIdDel').value.trim();
+  const reportId = document.getElementById('reportId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  if (!reportId) return alert('请输入报告 ID');
+  if (!confirm('确定删除该报告？')) return;
+  showLoading('reportsResult', '删除中...');
+  const r = await request('DELETE', '/api/stock-analyze/' + analyzeId + '/reports/' + reportId);
+  showResult('reportsResult', r.status === 204 ? '删除成功' : r, r.status >= 300);
+}
+
+// ─── TP/SL Points ───
+
+async function listTpSlPoints() {
+  const analyzeId = document.getElementById('tpSlAnalyzeId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  showLoading('tpSlResult', '请求中...');
+  const r = await request('GET', '/api/stock-analyze/' + analyzeId + '/tp-sl-points');
+  showResult('tpSlResult', r, r.status >= 300);
+}
+
+async function createTpSlPoint() {
+  const analyzeId = document.getElementById('tpSlAnalyzeId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  const price = parseFloat(document.getElementById('tpSlPrice').value);
+  if (isNaN(price)) return alert('请输入有效价格');
+  const label = document.getElementById('tpSlLabel').value.trim();
+  if (!label) return alert('请输入标签');
+  const notes = document.getElementById('tpSlNotes').value.trim();
+  showLoading('tpSlResult', '创建中...');
+  const r = await request('POST', '/api/stock-analyze/' + analyzeId + '/tp-sl-points', {
+    price, label, notes
+  });
+  showResult('tpSlResult', r, r.status >= 300);
+}
+
+async function deleteTpSlPoint() {
+  const analyzeId = document.getElementById('tpSlAnalyzeIdDel').value.trim();
+  const pointId = document.getElementById('tpSlPointId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  if (!pointId) return alert('请输入点位 ID');
+  if (!confirm('确定删除该点位？')) return;
+  showLoading('tpSlResult', '删除中...');
+  const r = await request('DELETE', '/api/stock-analyze/' + analyzeId + '/tp-sl-points/' + pointId);
+  showResult('tpSlResult', r.status === 204 ? '删除成功' : r, r.status >= 300);
+}
+
+// ─── Stock Tags ───
+
+async function listStockTags() {
+  const analyzeId = document.getElementById('tagAnalyzeId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  showLoading('stockTagsResult', '请求中...');
+  const r = await request('GET', '/api/stock-analyze/' + analyzeId + '/stock-tags');
+  showResult('stockTagsResult', r, r.status >= 300);
+}
+
+async function createStockTag() {
+  const analyzeId = document.getElementById('tagAnalyzeId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  const tag = document.getElementById('stockTagValue').value.trim();
+  if (!tag) return alert('请输入标签');
+  showLoading('stockTagsResult', '创建中...');
+  const r = await request('POST', '/api/stock-analyze/' + analyzeId + '/stock-tags', { tag });
+  showResult('stockTagsResult', r, r.status >= 300);
+}
+
+async function deleteStockTag() {
+  const analyzeId = document.getElementById('tagAnalyzeIdDel').value.trim();
+  const tagId = document.getElementById('stockTagId').value.trim();
+  if (!analyzeId) return alert('请输入分析 ID');
+  if (!tagId) return alert('请输入标签 ID');
+  if (!confirm('确定删除该标签？')) return;
+  showLoading('stockTagsResult', '删除中...');
+  const r = await request('DELETE', '/api/stock-analyze/' + analyzeId + '/stock-tags/' + tagId);
+  showResult('stockTagsResult', r.status === 204 ? '删除成功' : r, r.status >= 300);
 }
 
 // ─── Quick Test ───
