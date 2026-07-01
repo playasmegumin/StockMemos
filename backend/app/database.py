@@ -6,7 +6,7 @@ from app.config import settings
 
 engine = create_engine(
     settings.database_url,
-    echo=settings.app_env == "development",
+    echo=False,  # SQL 日志由 logging 模块路由到文件，不再输出到控制台
     pool_pre_ping=True,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
