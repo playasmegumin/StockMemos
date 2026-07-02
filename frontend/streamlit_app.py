@@ -1,92 +1,45 @@
-"""StockMemos 主入口 — 首页 = 持仓总览
-
-设置页面全局配置、侧边栏导航，以及持仓总览 Dashboard。
-"""
+"""StockMemos 首页 — 持仓概览与股票列表"""
 
 import sys
 sys.path.append("/app")
-from app.components.sidebar import render_sidebar
-
 
 import requests
-import pandas as pd
 import streamlit as st
-import plotly.express as px
-from datetime import datetime
+from app.components.sidebar import render_sidebar
 
 st.set_page_config(
-    page_title="持仓总览",
+    page_title="持仓概览",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── 全局 CSS ─────────────────────────────
+# ── CSS ─────────────────────────────
 st.markdown("""
     <style>
     .stApp .block-container {
         max-width: 100% !important;
-        width: 100% !important;
         padding-left: 2rem !important;
         padding-right: 2rem !important;
     }
-    [data-testid="stSidebar"] {
-        width: 16rem !important;
-        min-width: 16rem !important;
-    }
-    [data-testid="stSidebar"] > div:first-child {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-    .stDataFrame td {
-        white-space: nowrap !important;
-    }
+    .card { background: #fff; border-radius: 10px; padding: 1.2rem 1.5rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08); text-align: center; }
+    .card-label { font-size: 0.85rem; color: #888; margin-bottom: 0.3rem; }
+    .card-value { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; }
+    .card-value.positive { color: #e74c3c; }
+    .card-value.negative { color: #27ae60; }
+    .tag-pill { display: inline-block; background: #eef2ff; color: #4f46e5;
+                border-radius: 12px; padding: 2px 10px; font-size: 0.8rem;
+                margin: 1px 2px; }
     </style>
 """, unsafe_allow_html=True)
 
 render_sidebar()
 
-
-# ── 侧边栏 ─────────────────────────────
-st.sidebar.markdown("""
-    <style>
-    /* 隐藏默认页面导航 */
-    [data-testid="stSidebarNav"] {
-        display: none !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.sidebar.title("📊 StockMemos")
-
-# 自定义页面导航
-st.sidebar.page_link("streamlit_app.py", label="📈 持仓总览")
-
-st.sidebar.markdown("---")
-
-st.sidebar.markdown("""
-**多Agent智能投研系统**
-
-- 持仓跟踪与盈亏分析
-- AI 驱动的多空辩论
-- 事件影响评估
-- 策略回测与信号
-""")
-
-st.sidebar.markdown("---")
-st.sidebar.caption("Backend: http://backend:8080")
-
-# ── 配置 ──────────────────────────────────
 API_BASE = "http://backend:8080/api"
 
 
 def _api(method: str, path: str, **kwargs):
-    """统一 API 调用
-
-    特殊处理：
-    - 204 No Content → 返回 True（无响应体）
-    - 空响应 → 返回 True
-    """
     url = f"{API_BASE}{path}"
     try:
         resp = requests.request(method, url, timeout=30, **kwargs)
@@ -100,222 +53,130 @@ def _api(method: str, path: str, **kwargs):
 
 
 # ════════════════════════════════════════════
-# 持仓总览 Dashboard
+# 持仓概览
 # ════════════════════════════════════════════
-st.title("📈 持仓总览")
-st.caption("实时盈亏跟踪 · 仓位管理 Dashboard")
+st.title("📈 持仓概览")
 
-# 加载数据
-with st.spinner("正在拉取最新行情..."):
-    data = _api("GET", "/portfolio/dashboard")
+with st.spinner("正在加载数据..."):
+    stocks_data = _api("GET", "/stocks")
 
-if not data:
-    st.warning("暂无持仓数据，请先在下方添加持仓。")
-    positions = []
-    summary = {
-        "total_cost": 0.0,
-        "total_market_value": 0.0,
-        "total_floating_pnl": 0.0,
-        "total_pnl_rate": 0.0,
-        "position_count": 0,
-    }
-else:
-    positions = data.get("positions", [])
-    summary = data.get("summary", {})
+if stocks_data is None:
+    stocks_data = []
 
-# ── 顶部汇总卡片 ──────────────────────────
-st.markdown("---")
+# ── 汇总卡片 ──
+total_position = sum(float(s.get("position", 0)) for s in stocks_data)
+total_pnl = sum(float(s.get("historical_pnl", 0)) for s in stocks_data)
+stock_count = len(stocks_data)
 
-cols = st.columns(5)
-cols[0].metric(
-    label="💰 总市值",
-    value=f"¥{summary.get('total_market_value', 0):,.2f}",
-    delta=f"¥{summary.get('total_floating_pnl', 0):,.2f}",
-)
-cols[1].metric(
-    label="📥 总成本",
-    value=f"¥{summary.get('total_cost', 0):,.2f}",
-)
-cols[2].metric(
-    label="📈 浮动盈亏",
-    value=f"¥{summary.get('total_floating_pnl', 0):,.2f}",
-    delta=f"{summary.get('total_pnl_rate', 0)*100:.2f}%",
-    delta_color="normal",
-)
-cols[3].metric(
-    label="📊 总收益率",
-    value=f"{summary.get('total_pnl_rate', 0)*100:.2f}%",
-)
-cols[4].metric(
-    label="🏷️ 持仓数量",
-    value=f"{summary.get('position_count', 0)} 只",
-)
+cols = st.columns(4)
+pnl_style = "positive" if total_pnl >= 0 else "negative"
 
-st.markdown("---")
+with cols[0]:
+    st.markdown(f"""<div class='card'>
+        <div class='card-label'>股票数量</div>
+        <div class='card-value'>{stock_count}</div>
+    </div>""", unsafe_allow_html=True)
+with cols[1]:
+    st.markdown(f"""<div class='card'>
+        <div class='card-label'>总持仓量</div>
+        <div class='card-value'>{total_position:,.0f}</div>
+    </div>""", unsafe_allow_html=True)
+with cols[2]:
+    st.markdown(f"""<div class='card'>
+        <div class='card-label'>历史盈亏</div>
+        <div class='card-value {pnl_style}'>{'%+.2f' % total_pnl}</div>
+    </div>""", unsafe_allow_html=True)
+with cols[3]:
+    st.markdown(f"""<div class='card'>
+        <div class='card-label'>持仓股票</div>
+        <div class='card-value'>{sum(1 for s in stocks_data if float(s.get("position", 0)) != 0)}</div>
+    </div>""", unsafe_allow_html=True)
 
-# ── 持仓明细表格 ──────────────────────────
-st.subheader("📋 持仓明细")
+st.divider()
 
-if positions:
-    df = pd.DataFrame(positions)
-    df_display = df.rename(columns={
-        "stock_code": "代码",
-        "stock_name": "名称",
-        "quantity": "数量",
-        "cost_price": "成本价",
-        "latest_price": "最新价",
-        "market_value": "市值",
-        "floating_pnl": "浮动盈亏",
-        "pnl_rate": "盈亏率",
-        "status": "状态",
-    })
-    df_display["盈亏率"] = df_display["盈亏率"].apply(lambda x: f"{x*100:.2f}%")
-    df_display["成本价"] = df_display["成本价"].apply(lambda x: f"{x:.2f}")
-    df_display["最新价"] = df_display["最新价"].apply(lambda x: f"{x:.2f}")
-    df_display["市值"] = df_display["市值"].apply(lambda x: f"{x:,.2f}")
-    df_display["浮动盈亏"] = df_display["浮动盈亏"].apply(lambda x: f"{x:+,.2f}")
+# ════════════════════════════════════════════
+# 添加股票
+# ════════════════════════════════════════════
+st.subheader("➕ 添加股票")
 
-    st.dataframe(
-        df_display[["代码", "名称", "数量", "成本价", "最新价", "市值", "浮动盈亏", "盈亏率"]],
-        use_container_width=True,
-        hide_index=True,
-    )
+exchange_currency_map = {
+    "CN": "CNY", "SH": "CNY", "SZ": "CNY",
+    "HK": "HKD", "US": "USD",
+}
 
-    # 快捷操作
-    st.subheader("⚡ 快捷操作")
-    for i, pos in enumerate(positions):
-        cols = st.columns([3, 2, 2, 2, 2])
-        cols[0].markdown(f"**{pos['stock_code']}** {pos.get('stock_name', '')}")
+with st.form("add_stock_form"):
+    row = st.columns([3, 2, 3, 1])
+    with row[0]:
+        code = st.text_input("股票代码", placeholder="600519 / 00700 / AAPL")
+    with row[1]:
+        exchange = st.selectbox("交易所", options=list(exchange_currency_map.keys()))
+    with row[2]:
+        name = st.text_input("股票名称", placeholder="贵州茅台")
+    with row[3]:
+        currency = exchange_currency_map[exchange]
+        st.text_input("货币", value=currency, disabled=True)
 
-        if cols[1].button("🔍 分析", key=f"analyze_{pos['id']}"):
-            st.session_state.analyze_stock_code = pos['stock_code']
-            st.switch_page("pages/2_个股分析.py")
-
-        if cols[2].button("➕ 加仓", key=f"add_{pos['id']}"):
-            st.session_state.add_position_id = pos['id']
-
-        if cols[3].button("➖ 减仓", key=f"reduce_{pos['id']}"):
-            st.session_state.reduce_position_id = pos['id']
-
-        if cols[4].button("🗑️ 删除", key=f"del_{pos['id']}"):
-            if _api("DELETE", f"/portfolio/{pos['id']}"):
-                st.success(f"已删除 {pos['stock_code']}")
-                st.rerun()
-            else:
-                st.error("删除失败")
-
-    # ── 加仓/减仓表单 ─────────────────────────
-    # 加仓
-    add_id = st.session_state.get("add_position_id")
-    if add_id:
-        pos = next((p for p in positions if p['id'] == add_id), None)
-        if pos:
-            with st.container(border=True):
-                st.markdown(f"**➕ 加仓 {pos['stock_code']}**")
-                c1, c2 = st.columns(2)
-                add_qty = c1.number_input("加仓数量", min_value=1, value=100, step=100, key="add_qty")
-                add_price = c2.number_input("加仓价格", min_value=0.01, value=pos['latest_price'] or pos['cost_price'], step=0.01, format="%.2f", key="add_price")
-                c3, c4 = st.columns(2)
-                if c3.button("✅ 确认加仓", key="confirm_add"):
-                    # 新成本价 = (原成本×原数量 + 加仓价格×加仓数量) / 总数量
-                    total_qty = pos['quantity'] + add_qty
-                    new_cost = (pos['cost_price'] * pos['quantity'] + add_price * add_qty) / total_qty
-                    result = _api("PUT", f"/portfolio/{pos['id']}", json={
-                        "stock_code": pos['stock_code'],
-                        "stock_name": pos.get('stock_name'),
-                        "quantity": total_qty,
-                        "cost_price": new_cost,
-                        "build_date": pos['build_date'],
-                        "status": "holding",
-                    })
-                    if result:
-                        st.success(f"✅ 已加仓 {add_qty} 股，新成本价 ¥{new_cost:.2f}")
-                        del st.session_state["add_position_id"]
-                        st.rerun()
-                if c4.button("❌ 取消", key="cancel_add"):
-                    del st.session_state["add_position_id"]
-                    st.rerun()
-
-    # 减仓
-    reduce_id = st.session_state.get("reduce_position_id")
-    if reduce_id:
-        pos = next((p for p in positions if p['id'] == reduce_id), None)
-        if pos:
-            with st.container(border=True):
-                st.markdown(f"**➖ 减仓 {pos['stock_code']}**")
-                reduce_qty = st.number_input("减仓数量", min_value=1, max_value=pos['quantity'], value=min(100, pos['quantity']), step=100, key="reduce_qty")
-                c1, c2 = st.columns(2)
-                if c1.button("✅ 确认减仓", key="confirm_reduce"):
-                    remaining = pos['quantity'] - reduce_qty
-                    if remaining <= 0:
-                        # 清仓
-                        if _api("DELETE", f"/portfolio/{pos['id']}"):
-                            st.success(f"✅ 已清仓 {pos['stock_code']}")
-                            del st.session_state["reduce_position_id"]
-                            st.rerun()
-                    else:
-                        # 部分减仓，成本价不变
-                        result = _api("PUT", f"/portfolio/{pos['id']}", json={
-                            "stock_code": pos['stock_code'],
-                            "stock_name": pos.get('stock_name'),
-                            "quantity": remaining,
-                            "cost_price": pos['cost_price'],
-                            "build_date": pos['build_date'],
-                            "status": "holding",
-                        })
-                        if result:
-                            st.success(f"✅ 已减仓 {reduce_qty} 股，剩余 {remaining} 股")
-                            del st.session_state["reduce_position_id"]
-                            st.rerun()
-                if c2.button("❌ 取消", key="cancel_reduce"):
-                    del st.session_state["reduce_position_id"]
-                    st.rerun()
-
-else:
-    st.info("暂无持仓记录，请使用下方表单添加。")
-
-st.markdown("---")
-
-# ── 新增持仓 ──────────────────────────────
-with st.expander("➕ 新增持仓", expanded=not positions):
-    with st.form("new_portfolio"):
-        c1, c2 = st.columns(2)
-        stock_code = c1.text_input("股票代码", placeholder="如 000001.SZ")
-        stock_name = c2.text_input("股票名称", placeholder="如 平安银行")
-
-        c3, c4 = st.columns(2)
-        quantity = c3.number_input("持股数量", min_value=1, value=100, step=100)
-        cost_price = c4.number_input("成本价", min_value=0.01, value=10.0, step=0.01, format="%.2f")
-
-        build_date = st.date_input("建仓日期", value=datetime.today())
-        submitted = st.form_submit_button("📝 保存持仓", use_container_width=True)
-
+    submitted = st.form_submit_button("添加", use_container_width=True)
     if submitted:
-        payload = {
-            "stock_code": stock_code,
-            "stock_name": stock_name or None,
-            "quantity": int(quantity),
-            "cost_price": float(cost_price),
-            "build_date": build_date.strftime("%Y-%m-%d"),
-            "status": "holding",
-        }
-        result = _api("POST", "/portfolio", json=payload)
-        if result:
-            st.success(f"✅ 已添加 {stock_code} {stock_name}")
-            st.rerun()
+        if not code.strip() or not name.strip():
+            st.error("股票代码和名称不能为空")
+        else:
+            result = _api("POST", "/stocks", json={
+                "exchange": exchange,
+                "symbol": code.strip(),
+                "name": name.strip(),
+                "currency": currency,
+            })
+            if result:
+                st.success(f"已添加: {name.strip()}")
+                st.rerun()
 
-# ── 板块概览 ────────────────────────────
-if positions:
-    st.markdown("---")
-    st.subheader("🧩 板块概览")
-    st.caption("按股票名称简单分组（后续可按行业分类）")
+# ════════════════════════════════════════════
+# 股票列表
+# ════════════════════════════════════════════
+st.subheader("📋 股票列表")
 
-    fig = px.pie(
-        df,
-        values="market_value",
-        names="stock_name",
-        title="持仓市值分布",
-        hole=0.4,
-    )
-    fig.update_layout(showlegend=True, height=400)
-    st.plotly_chart(fig, use_container_width=True)
+if not stocks_data:
+    st.info("暂无股票数据，请在上方添加第一支股票。")
+else:
+    # 获取标签摘要
+    tag_map = {}
+    for s in stocks_data:
+        analyze = _api("GET", f"/stock-analyze/stock/{s['id']}")
+        if analyze and analyze.get("id"):
+            tags = _api("GET", f"/stock-analyze/{analyze['id']}/stock-tags")
+            if tags:
+                tag_map[s["id"]] = [t["tag"] for t in tags]
+
+    for s in stocks_data:
+        sid = s["id"]
+        pos = float(s.get("position", 0))
+        pnl = float(s.get("historical_pnl", 0))
+        code_str = f"{s['exchange']}.{s['symbol']}"
+        tags_html = " ".join(f'<span class="tag-pill">{t}</span>'
+                            for t in tag_map.get(sid, []))
+
+        with st.container(border=True):
+            cols = st.columns([2, 2, 1.5, 1.5, 1.5, 1.5, 2])
+            with cols[0]:
+                st.markdown(f"**{s['name']}**  \n<small>{code_str}</small>",
+                           unsafe_allow_html=True)
+            with cols[1]:
+                st.markdown(f"货币: {s['currency']}")
+            with cols[2]:
+                st.markdown(f"**持仓**  \n{pos:,.0f}")
+            with cols[3]:
+                st.markdown(f"**盈亏**  \n{'%+.2f' % pnl}")
+            with cols[4]:
+                if tags_html:
+                    st.markdown(f"<small>{tags_html}</small>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<small>—</small>", unsafe_allow_html=True)
+            with cols[5]:
+                if st.button("🔍 详情", key=f"detail_{sid}"):
+                    st.session_state["current_stock_id"] = sid
+                    st.switch_page("pages/stock_detail.py")
+            with cols[6]:
+                if st.button("🗑️ 删除", key=f"del_{sid}"):
+                    if _api("DELETE", f"/stocks/{sid}"):
+                        st.rerun()
