@@ -3,8 +3,7 @@
 import sys
 sys.path.append("/app")
 
-import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 import requests
 import streamlit as st
@@ -12,7 +11,6 @@ from app.components.sidebar import render_sidebar
 
 st.set_page_config(page_title="个股详情", layout="wide")
 
-# ── CSS ─────────────────────────────
 st.markdown("""
     <style>
     .stApp .block-container {
@@ -25,13 +23,14 @@ st.markdown("""
         border-radius: 12px; padding: 2px 10px; font-size: 0.8rem;
         margin: 2px 4px; white-space: nowrap;
     }
-    .tag-pill .delete-btn {
-        display: inline-block; margin-left: 4px; cursor: pointer;
-        color: #4f46e5; font-weight: bold;
-    }
-    .tag-pill .delete-btn:hover { color: #dc2626; }
-    .buy-row { background-color: #fff5f5 !important; }
-    .sell-row { background-color: #f0fff4 !important; }
+    .tag-pill .del { margin-left: 4px; cursor: pointer; color: #999; }
+    .tag-pill .del:hover { color: #dc2626; }
+    .inline-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .buy-row { background-color: #fff5f5; }
+    .sell-row { background-color: #f0fff4; }
+    .fund-annotation { font-size: 0.75rem; color: #888; margin-top: -8px; margin-bottom: 8px; }
+    [data-testid="stSidebarNavItems"] { display: none !important; }
+    [data-testid="stSidebarNav"] { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,8 +62,10 @@ if not stock_id:
         st.switch_page("streamlit_app.py")
     st.stop()
 
-if st.button("← 返回列表"):
-    st.switch_page("streamlit_app.py")
+back_col, _ = st.columns([1, 10])
+with back_col:
+    if st.button("← 返回列表"):
+        st.switch_page("streamlit_app.py")
 
 with st.spinner("正在加载数据..."):
     stock = _api("GET", f"/stocks/{stock_id}")
@@ -78,7 +79,6 @@ st.title(f"{stock['name']} ({code_str})")
 
 col1, col2, col3, col4 = st.columns(4)
 pnl = float(stock.get("historical_pnl", 0))
-pnl_style = "positive" if pnl >= 0 else "negative"
 with col1:
     st.metric("持仓量", f"{float(stock.get('position', 0)):,.0f}")
 with col2:
@@ -88,8 +88,6 @@ with col3:
 with col4:
     st.metric("货币", stock["currency"])
 
-st.divider()
-
 # ── 获取分析 ID（自动创建）─────────────────
 analyze = _api("GET", f"/stock-analyze/stock/{stock_id}")
 if not analyze or not analyze.get("id"):
@@ -98,102 +96,90 @@ if not analyze or not analyze.get("id"):
 analyze_id = analyze["id"]
 
 # ════════════════════════════════════════════
-# Block 2: Tags
+# Tags — 作为基本情况的属性行
 # ════════════════════════════════════════════
-st.subheader("🏷️ 标签")
-
 tags = _api("GET", f"/stock-analyze/{analyze_id}/stock-tags") or []
 
+tag_items = [t["tag"] for t in tags]
+tag_cols = st.columns([1] + [1] * len(tags) + [2])
+
+with tag_cols[0]:
+    st.markdown("**标签：**")
+
 if tags:
-    tag_cols = st.columns([1] * len(tags))
     for i, t in enumerate(tags):
-        with tag_cols[i]:
-            pill_html = f'<span class="tag-pill">{t["tag"]}</span>'
-            st.markdown(pill_html, unsafe_allow_html=True)
-            if st.button("×", key=f"del_tag_{t['id']}", help="删除标签"):
+        with tag_cols[i + 1]:
+            if st.button(f"{t['tag']} ×", key=f"del_tag_{t['id']}",
+                         help="删除标签", use_container_width=True):
                 if _api("DELETE", f"/stock-analyze/{analyze_id}/stock-tags/{t['id']}"):
                     st.rerun()
 else:
-    st.caption("暂无标签")
+    with tag_cols[1]:
+        st.caption("暂无")
 
-# Add tag
-col_tag_input, col_tag_btn = st.columns([3, 1])
-with col_tag_input:
-    new_tag = st.text_input("新标签", label_visibility="collapsed", placeholder="输入新标签...", key="tag_input")
-with col_tag_btn:
-    if st.button("添加", use_container_width=True):
+# 内联添加标签
+add_tag_cols = st.columns([2, 1])
+with add_tag_cols[0]:
+    new_tag = st.text_input("新标签", label_visibility="collapsed",
+                            placeholder="输入标签...", key="tag_input")
+with add_tag_cols[1]:
+    if st.button("+ 添加", key="add_tag_btn", use_container_width=True):
         if new_tag.strip():
-            if _api("POST", f"/stock-analyze/{analyze_id}/stock-tags", json={"tag": new_tag.strip()}):
+            if _api("POST", f"/stock-analyze/{analyze_id}/stock-tags",
+                    json={"tag": new_tag.strip()}):
                 st.rerun()
-        else:
-            st.error("标签不能为空")
 
 st.divider()
 
 # ════════════════════════════════════════════
-# Block 3: Fundamentals
+# Fundamentals — 结构化表单 + 注解
 # ════════════════════════════════════════════
 st.subheader("📊 基本面数据")
 
-fundamentals = analyze.get("fundamentals_data")
+fundamentals = analyze.get("fundamentals_data") or {}
 
-if fundamentals:
-    # Display as key-value table
-    f_data = []
-    for k, v in fundamentals.items():
-        if isinstance(v, (int, float)):
-            f_data.append({"指标": k, "值": f"{v:,.2f}" if isinstance(v, float) else str(v)})
-        else:
-            f_data.append({"指标": k, "值": str(v)})
-    st.table(f_data)
+FUND_FIELDS = [
+    ("pe_ttm", "PE_TTM（滚动市盈率）", "总市值 / 最近12个月净利润"),
+    ("pb", "PB（市净率）", "总市值 / 净资产"),
+    ("roe", "ROE（净资产收益率 %）", "净利润 / 净资产 × 100%"),
+    ("market_cap", "总市值", "总股本 × 当前股价"),
+    ("dividend_yield", "股息率（%）", "每股分红 / 每股股价 × 100%"),
+    ("profit_growth_rate", "营收增长率（%）", "（本期营收 - 上期营收）/ 上期营收 × 100%"),
+    ("net_profit_margin", "净利率（%）", "净利润 / 营业收入 × 100%"),
+    ("debt_ratio", "资产负债率（%）", "总负债 / 总资产 × 100%"),
+]
 
-    # Edit toggle
-    if "show_fund_edit" not in st.session_state:
-        st.session_state.show_fund_edit = False
+with st.container(border=True):
+    fund_form = {}
+    cols_row = st.columns(2)
+    for idx, (key, label, annotation) in enumerate(FUND_FIELDS):
+        with cols_row[idx % 2]:
+            current_val = fundamentals.get(key)
+            if current_val is not None:
+                fund_form[key] = st.number_input(
+                    label, value=float(current_val),
+                    format="%.4f" if any(k in key for k in ["roe", "yield", "margin", "ratio", "growth"]) else "%.2f",
+                    key=f"fund_{key}"
+                )
+            else:
+                fund_form[key] = st.number_input(
+                    label, value=0.0, format="%.4f",
+                    key=f"fund_{key}"
+                )
+            st.markdown(f'<div class="fund-annotation">{annotation}</div>',
+                        unsafe_allow_html=True)
 
-    if st.button("编辑基本面数据", key="toggle_fund_edit"):
-        st.session_state.show_fund_edit = not st.session_state.show_fund_edit
-
-    if st.session_state.show_fund_edit:
-        with st.container(border=True):
-            fund_json = json.dumps(fundamentals, ensure_ascii=False, indent=2)
-            new_fund = st.text_area("基本面数据 (JSON)", value=fund_json, height=200, key="fund_edit_area")
-            if st.button("保存基本面数据"):
-                try:
-                    parsed = json.loads(new_fund)
-                    result = _api("PUT", f"/stock-analyze/{analyze_id}", json={"fundamentals_data": parsed})
-                    if result:
-                        st.success("基本面数据已更新")
-                        st.session_state.show_fund_edit = False
-                        st.rerun()
-                except json.JSONDecodeError as e:
-                    st.error(f"JSON 格式错误: {e}")
-else:
-    st.caption("暂无基本面数据")
-    if st.button("添加基本面数据", key="toggle_fund_add"):
-        st.session_state.show_fund_edit = True
-
-    if st.session_state.get("show_fund_edit"):
-        with st.container(border=True):
-            fund_json = st.text_area(
-                "基本面数据 (JSON)", value="{}", height=200,
-                key="fund_add_area"
-            )
-            if st.button("保存基本面数据"):
-                try:
-                    parsed = json.loads(fund_json)
-                    result = _api("PUT", f"/stock-analyze/{analyze_id}", json={"fundamentals_data": parsed})
-                    if result:
-                        st.success("基本面数据已保存")
-                        st.session_state.show_fund_edit = False
-                        st.rerun()
-                except json.JSONDecodeError as e:
-                    st.error(f"JSON 格式错误: {e}")
+    if st.button("保存基本面数据", use_container_width=True):
+        updated = {k: v for k, v in fund_form.items()}
+        if _api("PUT", f"/stock-analyze/{analyze_id}",
+                json={"fundamentals_data": updated}):
+            st.success("基本面数据已更新")
+            st.rerun()
 
 st.divider()
 
 # ════════════════════════════════════════════
-# Block 4: TP/SL Points
+# TP/SL Points — 内联添加行
 # ════════════════════════════════════════════
 st.subheader("🎯 止盈止损点")
 
@@ -205,149 +191,151 @@ if tp_sl_points:
         with cols[0]:
             st.markdown(f"**{pt['label']}**")
         with cols[1]:
-            st.markdown(f"价格: {pt['price']:.2f}")
+            st.markdown(f"{float(pt['price']):.2f}")
         with cols[2]:
-            notes = pt.get("notes")
-            st.markdown(f"{notes or '—'}")
+            st.markdown(f"{pt.get('notes') or '—'}")
         with cols[3]:
             if st.button("🗑️", key=f"del_tp_{pt['id']}"):
                 if _api("DELETE", f"/stock-analyze/{analyze_id}/tp-sl-points/{pt['id']}"):
                     st.rerun()
-else:
-    st.caption("暂无止盈止损点")
 
-with st.expander("➕ 添加止盈止损点", expanded=False):
-    with st.form("tp_sl_form"):
-        tp_price = st.number_input("价格", min_value=0.01, step=0.01, format="%.2f")
-        tp_label = st.selectbox("类型", options=["买入", "卖出", "目标估值"])
-        tp_notes = st.text_input("备注（可选）")
-        if st.form_submit_button("添加"):
+# 内联添加行
+st.markdown("**添加条目：**")
+add_cols = st.columns([1.5, 1.5, 3, 1])
+with add_cols[0]:
+    tp_label = st.selectbox("类型", options=["止盈", "止损", "其他"],
+                            key="tp_label")
+with add_cols[1]:
+    tp_price = st.number_input("数值", min_value=0.01, step=0.01, format="%.2f",
+                               key="tp_price")
+with add_cols[2]:
+    tp_notes = st.text_input("备注", placeholder="备注（可选）",
+                             key="tp_notes")
+with add_cols[3]:
+    if st.button("+ 添加", key="add_tp_btn", use_container_width=True):
+        if tp_price > 0:
             if _api("POST", f"/stock-analyze/{analyze_id}/tp-sl-points", json={
-                "price": tp_price,
-                "label": tp_label,
-                "notes": tp_notes.strip() or None,
+                "price": tp_price, "label": tp_label, "notes": tp_notes.strip() or None,
             }):
                 st.rerun()
 
 st.divider()
 
 # ════════════════════════════════════════════
-# Block 5: Transactions
+# Transactions — 内联添加行
 # ════════════════════════════════════════════
 st.subheader("💰 交易记录")
 
 transactions = _api("GET", f"/transactions/stock/{stock_id}") or []
 
-# Add transaction form
-with st.expander("➕ 添加交易记录", expanded=False):
-    with st.form("add_txn_form"):
-        txn_type = st.radio("类型", options=["买入", "卖出"], horizontal=True)
-        row = st.columns(4)
-        with row[0]:
-            qty = st.number_input("数量", min_value=0.01, step=100.0, format="%.2f")
-        with row[1]:
-            price = st.number_input("价格", min_value=0.01, step=1.0, format="%.2f")
-        with row[2]:
-            # Gas default based on exchange
-            exchange = stock.get("exchange", "")
-            if exchange in ("CN", "SH", "SZ"):
-                default_gas = 5.0
-            elif exchange == "HK":
-                default_gas = 18.0
-            elif exchange == "US":
-                default_gas = 1.99
-            else:
-                default_gas = 0.0
-            gas = st.number_input("手续费", min_value=0.0, step=1.0, format="%.2f", value=default_gas)
-        with row[3]:
-            traded_at = st.date_input("交易日期", value=date.today())
+# 内联添加行
+exchange = stock.get("exchange", "")
+default_gas = 5.0 if exchange in ("CN", "SH", "SZ") else 18.0 if exchange == "HK" else 1.99 if exchange == "US" else 0.0
 
-        if st.form_submit_button("添加"):
-            quantity_val = qty if txn_type == "买入" else -qty
-            if _api("POST", "/transactions", json={
-                "stock_id": stock_id,
-                "quantity": quantity_val,
-                "price": price,
-                "gas": gas,
-                "traded_at": str(traded_at),
-            }):
-                st.success("交易记录已添加")
-                st.rerun()
+st.markdown("**添加条目：**")
+add_row = st.columns([1.2, 1.5, 1.5, 1.5, 2, 0.8])
+with add_row[0]:
+    txn_type = st.selectbox("类型", options=["买入", "卖出"],
+                            key="txn_type")
+with add_row[1]:
+    price = st.number_input("价格", min_value=0.01, step=1.0, format="%.2f",
+                            key="txn_price")
+with add_row[2]:
+    qty = st.number_input("数量", min_value=0.01, step=100.0, format="%.2f",
+                          key="txn_qty")
+with add_row[3]:
+    gas = st.number_input("手续费", min_value=0.0, step=1.0, format="%.2f",
+                          value=default_gas, key="txn_gas")
+with add_row[4]:
+    traded_at = st.date_input("交易日期", value=date.today(),
+                              key="txn_date")
+with add_row[5]:
+    if st.button("+ 添加", key="add_txn_btn", use_container_width=True):
+        quantity_val = qty if txn_type == "买入" else -qty
+        if _api("POST", "/transactions", json={
+            "stock_id": stock_id, "quantity": quantity_val, "price": price,
+            "gas": gas, "traded_at": str(traded_at),
+        }):
+            st.rerun()
 
 # Transaction table
 if transactions:
-    # Prepare table data
+    st.markdown("---")
+    # Header row
+    hcols = st.columns([1, 1.5, 1.5, 1.5, 2, 1, 1])
+    headers = ["类型", "价格", "数量", "手续费", "交易日期", "", ""]
+    for ci, h in enumerate(headers):
+        with hcols[ci]:
+            st.markdown(f"**{h}**" if h else "")
+
     for txn in transactions:
         is_buy = txn["quantity"] > 0
-        row_class = "buy-row" if is_buy else "sell-row"
-        txn_type_label = "买入" if is_buy else "卖出"
+        txn_label = "买入" if is_buy else "卖出"
         qty_display = abs(txn["quantity"])
+        row_class = "buy-row" if is_buy else "sell-row"
 
         cols = st.columns([1, 1.5, 1.5, 1.5, 2, 1, 1])
         with cols[0]:
-            st.markdown(f"<span class='{row_class}' style='padding:2px 8px;border-radius:4px;'>{txn_type_label}</span>",
+            st.markdown(f"<span style='background:{'#fee2e2' if is_buy else '#dcfce7'};padding:2px 8px;border-radius:4px;'>{txn_label}</span>",
                         unsafe_allow_html=True)
         with cols[1]:
-            st.markdown(f"{qty_display:,.2f}")
-        with cols[2]:
             st.markdown(f"{txn['price']:.2f}")
+        with cols[2]:
+            st.markdown(f"{qty_display:,.2f}")
         with cols[3]:
             st.markdown(f"{txn['gas']:.2f}")
         with cols[4]:
             st.markdown(str(txn.get("traded_at", "")))
         with cols[5]:
-            # Edit button toggles inline form
-            edit_key = f"edit_txn_{txn['id']}"
-            if st.button("✏️", key=edit_key):
-                st.session_state[f"editing_txn_{txn['id']}"] = not st.session_state.get(f"editing_txn_{txn['id']}", False)
+            edit_key = f"edit_{txn['id']}"
+            st.button("✏️", key=edit_key)
         with cols[6]:
-            if st.button("🗑️", key=f"del_txn_{txn['id']}"):
+            if st.button("🗑️", key=f"del_{txn['id']}"):
                 if _api("DELETE", f"/transactions/{txn['id']}"):
                     st.rerun()
 
-        # Inline edit form
-        if st.session_state.get(f"editing_txn_{txn['id']}", False):
+        # Inline edit (only shown when edit button clicked)
+        if st.session_state.get(edit_key, False):
             with st.container(border=True):
-                st.caption(f"编辑交易记录 ({txn_type_label})")
-                with st.form(f"edit_txn_form_{txn['id']}"):
-                    edit_row = st.columns(4)
-                    with edit_row[0]:
-                        e_qty = st.number_input("数量", value=abs(txn["quantity"]),
-                                                min_value=0.01, step=100.0, format="%.2f",
-                                                key=f"eqty_{txn['id']}")
-                    with edit_row[1]:
-                        e_price = st.number_input("价格", value=txn["price"],
-                                                  min_value=0.01, step=1.0, format="%.2f",
-                                                  key=f"epr_{txn['id']}")
-                    with edit_row[2]:
-                        e_gas = st.number_input("手续费", value=txn["gas"],
-                                                min_value=0.0, step=1.0, format="%.2f",
-                                                key=f"egas_{txn['id']}")
-                    with edit_row[3]:
-                        try:
-                            traded_date = date.fromisoformat(str(txn["traded_at"]))
-                        except (ValueError, TypeError):
-                            traded_date = date.today()
-                        e_traded_at = st.date_input("交易日期", value=traded_date,
-                                                    key=f"edate_{txn['id']}")
-                    if st.form_submit_button("保存"):
-                        e_quantity_val = e_qty if is_buy else -e_qty
-                        if _api("PUT", f"/transactions/{txn['id']}", json={
-                            "quantity": e_quantity_val,
-                            "price": e_price,
-                            "gas": e_gas,
-                            "traded_at": str(e_traded_at),
-                        }):
-                            st.success("已更新")
-                            st.session_state[f"editing_txn_{txn['id']}"] = False
-                            st.rerun()
+                st.caption(f"编辑交易")
+                ef_cols = st.columns([1.2, 1.2, 1.2, 1, 1.5])
+                with ef_cols[0]:
+                    e_type = st.selectbox("类型", options=["买入", "卖出"],
+                                          index=0 if is_buy else 1,
+                                          key=f"et_{txn['id']}")
+                with ef_cols[1]:
+                    e_price = st.number_input("价格", value=txn["price"], min_value=0.01,
+                                              format="%.2f", key=f"ep_{txn['id']}")
+                with ef_cols[2]:
+                    e_qty = st.number_input("数量", value=qty_display, min_value=0.01,
+                                            format="%.2f", key=f"eq_{txn['id']}")
+                with ef_cols[3]:
+                    e_gas = st.number_input("手续费", value=txn["gas"], min_value=0.0,
+                                            format="%.2f", key=f"eg_{txn['id']}")
+                with ef_cols[4]:
+                    try:
+                        e_date = date.fromisoformat(str(txn["traded_at"]))
+                    except (ValueError, TypeError):
+                        e_date = date.today()
+                    e_traded = st.date_input("日期", value=e_date, key=f"ed_{txn['id']}")
+
+                if st.button("保存修改", key=f"save_{txn['id']}"):
+                    e_qty_val = e_qty if e_type == "买入" else -e_qty
+                    if _api("PUT", f"/transactions/{txn['id']}", json={
+                        "quantity": e_qty_val, "price": e_price, "gas": e_gas,
+                        "traded_at": str(e_traded),
+                    }):
+                        st.session_state[edit_key] = False
+                        st.rerun()
+                st.button("取消", key=f"cancel_{txn['id']}",
+                          on_click=lambda k=edit_key: st.session_state.update({k: False}))
 else:
     st.caption("暂无交易记录")
 
 st.divider()
 
 # ════════════════════════════════════════════
-# Block 6: Reports (tabs)
+# Reports — 标签页
 # ════════════════════════════════════════════
 st.subheader("📄 分析报告")
 
@@ -359,7 +347,6 @@ if reports:
     for i, tab in enumerate(tabs):
         with tab:
             r = reports[i]
-            st.markdown(f"**{r.get('title', '')}**")
             st.caption(f"生成时间: {r.get('generated_at', '—')}")
             st.markdown(r.get("content", ""))
 else:

@@ -31,6 +31,8 @@ st.markdown("""
     .tag-pill { display: inline-block; background: #eef2ff; color: #4f46e5;
                 border-radius: 12px; padding: 2px 10px; font-size: 0.8rem;
                 margin: 1px 2px; }
+    [data-testid="stSidebarNavItems"] { display: none !important; }
+    [data-testid="stSidebarNav"] { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -95,49 +97,12 @@ with cols[3]:
 st.divider()
 
 # ════════════════════════════════════════════
-# 添加股票
-# ════════════════════════════════════════════
-st.subheader("➕ 添加股票")
-
-exchange_currency_map = {
-    "CN": "CNY", "SH": "CNY", "SZ": "CNY",
-    "HK": "HKD", "US": "USD",
-}
-
-with st.form("add_stock_form"):
-    row = st.columns([3, 2, 3, 1])
-    with row[0]:
-        code = st.text_input("股票代码", placeholder="600519 / 00700 / AAPL")
-    with row[1]:
-        exchange = st.selectbox("交易所", options=list(exchange_currency_map.keys()))
-    with row[2]:
-        name = st.text_input("股票名称", placeholder="贵州茅台")
-    with row[3]:
-        currency = exchange_currency_map[exchange]
-        st.text_input("货币", value=currency, disabled=True)
-
-    submitted = st.form_submit_button("添加", use_container_width=True)
-    if submitted:
-        if not code.strip() or not name.strip():
-            st.error("股票代码和名称不能为空")
-        else:
-            result = _api("POST", "/stocks", json={
-                "exchange": exchange,
-                "symbol": code.strip(),
-                "name": name.strip(),
-                "currency": currency,
-            })
-            if result:
-                st.success(f"已添加: {name.strip()}")
-                st.rerun()
-
-# ════════════════════════════════════════════
 # 股票列表
 # ════════════════════════════════════════════
 st.subheader("📋 股票列表")
 
 if not stocks_data:
-    st.info("暂无股票数据，请在上方添加第一支股票。")
+    st.info("暂无股票数据。")
 else:
     # 获取标签摘要
     tag_map = {}
@@ -180,3 +145,38 @@ else:
                 if st.button("🗑️ 删除", key=f"del_{sid}"):
                     if _api("DELETE", f"/stocks/{sid}"):
                         st.rerun()
+
+st.divider()
+
+# ════════════════════════════════════════════
+# 添加股票（内联行，置于列表底部）
+# ════════════════════════════════════════════
+st.subheader("➕ 添加股票")
+
+EXCHANGE_OPTIONS = ["CN - CNY", "SH - CNY", "SZ - CNY", "HK - HKD", "US - USD"]
+
+add_row = st.columns([2, 2, 2, 0.8])
+with add_row[0]:
+    code = st.text_input("股票代码", placeholder="600519 / 00700 / AAPL",
+                         key="add_code")
+with add_row[1]:
+    selected_exchange = st.selectbox("交易所代号", options=EXCHANGE_OPTIONS,
+                                     key="add_exchange")
+    exchange = selected_exchange.split(" - ")[0]
+    currency = selected_exchange.split(" - ")[1]
+with add_row[2]:
+    name = st.text_input("股票名称", placeholder="贵州茅台",
+                         key="add_name")
+with add_row[3]:
+    if st.button("＋ 添加", key="add_stock_btn", use_container_width=True):
+        if not code.strip() or not name.strip():
+            st.error("股票代码和名称不能为空")
+        else:
+            result = _api("POST", "/stocks", json={
+                "exchange": exchange,
+                "symbol": code.strip(),
+                "name": name.strip(),
+                "currency": currency,
+            })
+            if result:
+                st.rerun()
