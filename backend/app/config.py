@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # TuShare
     tushare_token: str = ""
 
+    # Market data source per exchange
+    market_data_source_cn: str = "Tushare"
+    market_data_source_hk: str = "yfinance"
+    market_data_source_us: str = "yfinance"
+
     # LLM
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
