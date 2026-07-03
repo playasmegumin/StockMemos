@@ -20,6 +20,7 @@ from app.models import (  # noqa
     Report,
     TpSlPoint,
     StockTag,
+    KlineDaily,
 )
 
 # this is the Alembic Config object

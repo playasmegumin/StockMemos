@@ -18,6 +18,8 @@ class CurrentPrice(BaseModel):
     currency: str           # CNY/HKD/USD
     volume: Optional[float] = None
     source: str             # "tushare" / "yfinance"
+    data_quality: Optional[str] = None
+    """数据质量标识：None/缺失 = 正常实时，'degraded' = 降级为日K收盘价"""
 
 
 class DailyKline(BaseModel):

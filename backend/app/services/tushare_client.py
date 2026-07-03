@@ -104,8 +104,13 @@ class TushareClient:
 
     # ─── 辅助工具 ─────────────────────────────────────
 
-    def get_latest_price(self, stock_code: str) -> float:
-        """获取最新交易日收盘价（缓存 1 小时）"""
+    def get_latest_price(self, stock_code: str) -> tuple[float, str | None]:
+        """获取最新交易日收盘价 + 交易日（缓存 1 小时）
+
+        Returns:
+            (price, trade_date_str)  — 如 (124.12, "20260703")
+            (0.0, None)              — 无数据
+        """
         df = self._call(
             "daily",
             ts_code=stock_code,
@@ -114,8 +119,9 @@ class TushareClient:
         )
         if df is not None and not df.empty:
             close_price = df.iloc[0]["close"]
-            return float(close_price)
-        return 0.0
+            trade_date = str(df.iloc[0]["trade_date"])
+            return float(close_price), trade_date
+        return 0.0, None
 
     def get_stock_basic(self, stock_code: str) -> Optional[Dict[str, Any]]:
         """获取股票基本信息（名称、行业、地区、上市日期）"""

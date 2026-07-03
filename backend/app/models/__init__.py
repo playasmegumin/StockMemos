@@ -6,6 +6,7 @@ from app.models.stock_analyze import StockAnalyze
 from app.models.report import Report
 from app.models.tp_sl_point import TpSlPoint
 from app.models.stock_tag import StockTag
+from app.models.kline_daily import KlineDaily
 
 __all__ = [
     "Stock",
@@ -14,4 +15,5 @@ __all__ = [
     "Report",
     "TpSlPoint",
     "StockTag",
+    "KlineDaily",
 ]

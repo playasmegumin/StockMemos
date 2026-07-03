@@ -16,8 +16,86 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.stock import Stock
 from app.schemas.stock import StockCreate, StockUpdate, StockResponse
+from app.services.market_data.provider_router import ProviderRouter
+from app.services.tushare_client import TushareClient
 
 router = APIRouter()
+
+# 交易所 → 货币映射
+_EXCHANGE_CURRENCY = {
+    "SH": "CNY", "SZ": "CNY", "CN": "CNY",
+    "HK": "HKD",
+    "US": "USD",
+}
+
+
+# ────────────────────────────────
+# 股票查询（按代码自动获取名称）
+# ────────────────────────────────
+
+@router.get("/lookup")
+def lookup_stock(symbol: str, exchange: str):
+    """根据交易所+代码查询股票名称和货币"""
+    currency = _EXCHANGE_CURRENCY.get(exchange, "USD")
+    name = None
+
+    # 尝试当前数据源查询名称
+    router_p = ProviderRouter()
+    try:
+        provider = router_p.get_provider(exchange)
+    except Exception:
+        provider = None
+
+    # 尝试从 Provider 获取名称（通过 fundamentals）
+    if provider is not None:
+        try:
+            fund = provider.get_fundamentals(symbol, exchange)
+            if fund and fund.name:
+                name = fund.name
+        except Exception:
+            pass
+
+    # TuShare 兜底（Provider 未返回时直接查）
+    if not name and exchange in ("SH", "SZ", "CN"):
+        try:
+            ts_client = TushareClient()
+            ts_code = f"{symbol}.SH" if symbol.startswith("6") else f"{symbol}.SZ"
+            basic = ts_client.get_stock_basic(ts_code)
+            if basic and basic.get("name"):
+                name = basic["name"]
+        except Exception:
+            pass
+
+    # Finnhub 兜底
+    if not name and exchange == "US":
+        try:
+            import finnhub
+            from app.config import settings as app_settings
+            if app_settings.finnhub_api_key:
+                fc = finnhub.Client(api_key=app_settings.finnhub_api_key)
+                profile = fc.company_profile2(symbol=symbol)
+                if profile and profile.get("name"):
+                    name = profile["name"]
+        except Exception:
+            pass
+
+    # yfinance 兜底（港股/其他）
+    if not name:
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(f"{symbol}.HK" if exchange == "HK" else symbol)
+            info = ticker.info or {}
+            name = info.get("longName") or info.get("shortName")
+        except Exception:
+            pass
+
+    if not name:
+        raise HTTPException(
+            status_code=404,
+            detail=f"无法自动获取股票名称: {exchange}/{symbol}",
+        )
+
+    return {"name": name, "currency": currency}
 
 
 # ────────────────────────────────
