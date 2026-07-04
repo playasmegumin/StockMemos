@@ -3,7 +3,7 @@
 import sys
 sys.path.append("/app")
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 
 import requests
 import streamlit as st
@@ -39,7 +39,7 @@ render_sidebar()
 API_BASE = "http://backend:8080/api"
 
 
-def _api(method: str, path: str, **kwargs):
+def _api(method: str, path: str, silent: bool = False, **kwargs):
     url = f"{API_BASE}{path}"
     try:
         resp = requests.request(method, url, timeout=30, **kwargs)
@@ -48,8 +48,21 @@ def _api(method: str, path: str, **kwargs):
             return True
         return resp.json()
     except Exception as e:
-        st.error(f"API 请求失败: {e}")
+        if not silent:
+            st.error(f"API 请求失败: {e}")
         return None
+
+
+def _fmt_time(price_time: str | None, default: str = "") -> str:
+    """将 UTC ISO 时间转为 UTC+8 时间字符串（YY-MM-DD HH:MM）"""
+    if not price_time:
+        return default
+    try:
+        dt = datetime.fromisoformat(price_time.replace("Z", "+00:00"))
+        dt_utc8 = dt.astimezone(timezone(timedelta(hours=8)))
+        return dt_utc8.strftime("%y-%m-%d %H:%M")
+    except Exception:
+        return default
 
 
 # ════════════════════════════════════════════
@@ -62,10 +75,19 @@ if not stock_id:
         st.switch_page("streamlit_app.py")
     st.stop()
 
-back_col, _ = st.columns([1, 10])
+back_col, refresh_col, _ = st.columns([1, 1, 8])
 with back_col:
     if st.button("← 返回列表"):
         st.switch_page("streamlit_app.py")
+with refresh_col:
+    if st.button("🔄 刷新行情", key="refresh_market"):
+        with st.spinner("正在刷新行情数据..."):
+            result = _api("POST", "/market/refresh")
+            if result:
+                st.success("行情刷新完成")
+                st.rerun()
+            else:
+                st.error("行情刷新失败")
 
 with st.spinner("正在加载数据..."):
     stock = _api("GET", f"/stocks/{stock_id}")
@@ -74,17 +96,33 @@ if stock is None:
     st.error("无法获取股票信息")
     st.stop()
 
-code_str = f"{stock['exchange']}.{stock['symbol']}"
+code_str = f"{stock['symbol']}.{stock['exchange']}"
 st.title(f"{stock['name']} ({code_str})")
 
-col1, col2, col3, col4 = st.columns(4)
+pos = float(stock.get("position", 0))
 pnl = float(stock.get("historical_pnl", 0))
+
+# 实时价格 + 浮动盈亏
+price_data = st.session_state.get("price_single_cache") if st.session_state.get("data_initialized") else None
+if price_data is None:
+    price_data = _api("GET", f"/stocks/{stock_id}/price", silent=True)
+    if price_data:
+        st.session_state["price_single_cache"] = price_data
+price_val = float(price_data["price"]) if price_data else None
+floating_pnl = price_val * pos + pnl if (price_val and pos) else pnl
+price_available = price_val is not None
+
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("持仓量", f"{float(stock.get('position', 0)):,.0f}")
+    st.metric("持仓量", f"{pos:,.0f}")
 with col2:
-    st.metric("历史盈亏", f"{pnl:+.2f}", delta_color="off")
+    ts = _fmt_time(price_data.get("price_time")) if price_data else ""
+    label = f"{price_val:.2f}" if price_available else "当前不可用"
+    st.metric("最新价", label)
+    if ts:
+        st.caption(ts)
 with col3:
-    st.metric("交易所", stock["exchange"])
+    st.metric("浮动盈亏", f"{floating_pnl:+.2f}", delta_color="off")
 with col4:
     st.metric("货币", stock["currency"])
 
@@ -132,49 +170,47 @@ with add_tag_cols[1]:
 st.divider()
 
 # ════════════════════════════════════════════
-# Fundamentals — 结构化表单 + 注解
+# Fundamentals — 只读展示（后台自动拉取）
 # ════════════════════════════════════════════
 st.subheader("📊 基本面数据")
 
+# 如无基本面数据且未初始化，自动触发刷新
+fundamentals = analyze.get("fundamentals_data") or {}
+if not fundamentals and not st.session_state.get("data_initialized"):
+    with st.spinner("正在拉取基本面数据..."):
+        result = _api("POST", "/market/refresh-fundamentals", silent=True)
+        if result:
+            st.session_state["data_initialized"] = True
+            st.rerun()
+
 fundamentals = analyze.get("fundamentals_data") or {}
 
+if fundamentals.get("source"):
+    source_name = "yfinance" if fundamentals["source"] == "yfinance" else "TuShare" if fundamentals["source"] == "tushare" else fundamentals["source"]
+    data_date = fundamentals.get("data_date", "")
+    st.caption(f"来源: {source_name}　|　更新日: {data_date}")
+
 FUND_FIELDS = [
-    ("pe_ttm", "PE_TTM（滚动市盈率）", "总市值 / 最近12个月净利润"),
-    ("pb", "PB（市净率）", "总市值 / 净资产"),
-    ("roe", "ROE（净资产收益率 %）", "净利润 / 净资产 × 100%"),
-    ("market_cap", "总市值", "总股本 × 当前股价"),
-    ("dividend_yield", "股息率（%）", "每股分红 / 每股股价 × 100%"),
-    ("profit_growth_rate", "营收增长率（%）", "（本期营收 - 上期营收）/ 上期营收 × 100%"),
-    ("net_profit_margin", "净利率（%）", "净利润 / 营业收入 × 100%"),
-    ("debt_ratio", "资产负债率（%）", "总负债 / 总资产 × 100%"),
+    ("pe_ratio", "PE（市盈率）"),
+    ("pb_ratio", "PB（市净率）"),
+    ("market_cap", "总市值"),
+    ("roe", "ROE"),
+    ("dividend_yield", "股息率"),
+    ("eps", "每股收益"),
+    ("profit_margin", "净利率"),
+    ("debt_to_equity", "资产负债率"),
 ]
 
 with st.container(border=True):
-    fund_form = {}
     cols_row = st.columns(2)
-    for idx, (key, label, annotation) in enumerate(FUND_FIELDS):
+    for idx, (key, label) in enumerate(FUND_FIELDS):
+        val = fundamentals.get(key)
         with cols_row[idx % 2]:
-            current_val = fundamentals.get(key)
-            if current_val is not None:
-                fund_form[key] = st.number_input(
-                    label, value=float(current_val),
-                    format="%.4f" if any(k in key for k in ["roe", "yield", "margin", "ratio", "growth"]) else "%.2f",
-                    key=f"fund_{key}"
-                )
+            if val is not None:
+                display = f"{float(val):,.2f}" if isinstance(val, (int, float)) else str(val)
+                st.markdown(f"**{label}**  \n{display}")
             else:
-                fund_form[key] = st.number_input(
-                    label, value=0.0, format="%.4f",
-                    key=f"fund_{key}"
-                )
-            st.markdown(f'<div class="fund-annotation">{annotation}</div>',
-                        unsafe_allow_html=True)
-
-    if st.button("保存基本面数据", use_container_width=True):
-        updated = {k: v for k, v in fund_form.items()}
-        if _api("PUT", f"/stock-analyze/{analyze_id}",
-                json={"fundamentals_data": updated}):
-            st.success("基本面数据已更新")
-            st.rerun()
+                st.markdown(f"**{label}**  \n—")
 
 st.divider()
 

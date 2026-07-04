@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # TuShare
     tushare_token: str = ""
 
+    # Finnhub（美股备选数据源）
+    finnhub_api_key: str = ""
+
     # Market data source per exchange
     market_data_source_cn: str = "Tushare"
     market_data_source_hk: str = "yfinance"

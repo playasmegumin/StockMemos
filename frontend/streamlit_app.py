@@ -5,6 +5,7 @@ sys.path.append("/app")
 
 import requests
 import streamlit as st
+from datetime import date, datetime, timezone, timedelta
 from app.components.sidebar import render_sidebar
 
 st.set_page_config(
@@ -41,7 +42,7 @@ render_sidebar()
 API_BASE = "http://backend:8080/api"
 
 
-def _api(method: str, path: str, **kwargs):
+def _api(method: str, path: str, silent: bool = False, **kwargs):
     url = f"{API_BASE}{path}"
     try:
         resp = requests.request(method, url, timeout=30, **kwargs)
@@ -50,8 +51,21 @@ def _api(method: str, path: str, **kwargs):
             return True
         return resp.json()
     except Exception as e:
-        st.error(f"API 请求失败: {e}")
+        if not silent:
+            st.error(f"API 请求失败: {e}")
         return None
+
+
+def _fmt_time(price_time: str | None, default: str = "") -> str:
+    """将 UTC ISO 时间转为 UTC+8 时间字符串（YY-MM-DD HH:MM）"""
+    if not price_time:
+        return default
+    try:
+        dt = datetime.fromisoformat(price_time.replace("Z", "+00:00"))
+        dt_utc8 = dt.astimezone(timezone(timedelta(hours=8)))
+        return dt_utc8.strftime("%y-%m-%d %H:%M")
+    except Exception:
+        return default
 
 
 # ════════════════════════════════════════════
@@ -64,6 +78,16 @@ with st.spinner("正在加载数据..."):
 
 if stocks_data is None:
     stocks_data = []
+
+# 首次加载检测（仅在新浏览器 session 时触发）
+_data_init = st.session_state.get("data_initialized")
+if stocks_data and not _data_init:
+    first_sid = stocks_data[0]["id"]
+    kline = _api("GET", f"/stocks/{first_sid}/kline?end={date.today().isoformat()}", silent=True)
+    if isinstance(kline, list) and len(kline) == 0:
+        with st.spinner("首次加载，正在初始化行情数据..."):
+            _api("POST", "/market/refresh", silent=True)
+    st.session_state["data_initialized"] = True
 
 # ── 汇总卡片 ──
 total_position = sum(float(s.get("position", 0)) for s in stocks_data)
@@ -101,6 +125,17 @@ st.divider()
 # ════════════════════════════════════════════
 st.subheader("📋 股票列表")
 
+refresh_col, _ = st.columns([1, 5])
+with refresh_col:
+    if st.button("🔄 刷新基本面", key="refresh_fundamentals"):
+        with st.spinner("正在刷新基本面数据..."):
+            result = _api("POST", "/market/refresh-fundamentals")
+            if result:
+                st.success("基本面刷新完成")
+                st.rerun()
+            else:
+                st.error("基本面刷新失败")
+
 if not stocks_data:
     st.info("暂无股票数据。")
 else:
@@ -113,35 +148,64 @@ else:
             if tags:
                 tag_map[s["id"]] = [t["tag"] for t in tags]
 
+    # 获取实时价格（仅 session 首次触发，之后缓存到 session_state）
+    price_map = st.session_state.get("price_data_cache", {})
+    if not price_map and stocks_data:
+        for s in stocks_data:
+            pd = _api("GET", f"/stocks/{s['id']}/price", silent=True)
+            if pd:
+                price_map[s["id"]] = pd
+        if price_map:
+            st.session_state["price_data_cache"] = price_map
+
     for s in stocks_data:
         sid = s["id"]
         pos = float(s.get("position", 0))
         pnl = float(s.get("historical_pnl", 0))
-        code_str = f"{s['exchange']}.{s['symbol']}"
+        code_str = f"{s['symbol']}.{s['exchange']}"
         tags_html = " ".join(f'<span class="tag-pill">{t}</span>'
                             for t in tag_map.get(sid, []))
+        pd = price_map.get(sid)
+
+        # 浮动盈亏 = 最新价 × 持仓 + 历史盈亏
+        price_val = float(pd["price"]) if pd else None
+        floating_pnl = price_val * pos + pnl if (price_val and pos) else pnl
 
         with st.container(border=True):
-            cols = st.columns([2, 2, 1.5, 1.5, 1.5, 1.5, 2])
+            cols = st.columns([2, 2, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
             with cols[0]:
                 st.markdown(f"**{s['name']}**  \n<small>{code_str}</small>",
                            unsafe_allow_html=True)
             with cols[1]:
                 st.markdown(f"货币: {s['currency']}")
             with cols[2]:
-                st.markdown(f"**持仓**  \n{pos:,.0f}")
+                if pd:
+                    ts = _fmt_time(pd.get("price_time"))
+                    st.markdown(
+                        f"**最新价**  \n{price_val:.2f}"
+                        + (f" <small style='color:#888'>{ts}</small>" if ts else ""),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown("**最新价**  \n<small>当前不可用</small>", unsafe_allow_html=True)
             with cols[3]:
-                st.markdown(f"**盈亏**  \n{'%+.2f' % pnl}")
+                st.markdown(f"**持仓**  \n{pos:,.0f}")
             with cols[4]:
+                pnl_style = "positive" if floating_pnl >= 0 else "negative"
+                st.markdown(
+                    f"**浮动盈亏**  \n<span style='color:{'#e74c3c' if floating_pnl >= 0 else '#27ae60'}'>{'%+.2f' % floating_pnl}</span>",
+                    unsafe_allow_html=True,
+                )
+            with cols[5]:
                 if tags_html:
                     st.markdown(f"<small>{tags_html}</small>", unsafe_allow_html=True)
                 else:
                     st.markdown("<small>—</small>", unsafe_allow_html=True)
-            with cols[5]:
+            with cols[6]:
                 if st.button("🔍 详情", key=f"detail_{sid}"):
                     st.session_state["current_stock_id"] = sid
                     st.switch_page("pages/stock_detail.py")
-            with cols[6]:
+            with cols[7]:
                 if st.button("🗑️ 删除", key=f"del_{sid}"):
                     if _api("DELETE", f"/stocks/{sid}"):
                         st.rerun()
@@ -164,9 +228,25 @@ with add_row[1]:
                                      key="add_exchange")
     exchange = selected_exchange.split(" - ")[0]
     currency = selected_exchange.split(" - ")[1]
+
+# 自动查询：代码+交易所组合变化时自动获取名称+货币
+lookup_key = f"{exchange}:{code.strip()}"
+prev_lookup = st.session_state.get("last_lookup")
+if code.strip() and lookup_key != prev_lookup:
+    st.session_state["last_lookup"] = lookup_key
+    result = _api("GET", f"/stocks/lookup?symbol={code.strip()}&exchange={exchange}", silent=True)
+    if result and result.get("name"):
+        st.session_state["add_name"] = result["name"]
+        # 自动设置货币（如 HK→HKD）
+        target_opt = next((o for o in EXCHANGE_OPTIONS if o.endswith(result["currency"])), None)
+        if target_opt:
+            st.session_state["add_exchange"] = target_opt
+        st.rerun()
+
 with add_row[2]:
     name = st.text_input("股票名称", placeholder="贵州茅台",
                          key="add_name")
+
 with add_row[3]:
     if st.button("＋ 添加", key="add_stock_btn", use_container_width=True):
         if not code.strip() or not name.strip():
