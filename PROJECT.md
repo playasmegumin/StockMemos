@@ -484,3 +484,4 @@ docker compose build backend  # 重新构建后端
 | 0.5.0 | 2024-06-19 | Milestone 6 完成：RSS 结构化输出 / SMTP 邮件发送 / .env 模板 / 局域网部署文档 / Streamlit 设置与投递页 | Agent |
 | 0.6.0 | 2026-07-03 | 多数据源行情扩展方案前置：yfinance 港股/美股支持方案、Provider 适配器模式设计、kline_daily 表设计、降级策略 | Agent |
 | 0.7.0 | 2026-07-03 | 全局设计文档对齐实际代码：移除旧模型/API 描述，重写为新模型体系（Stock/Transaction/StockAnalyze/Report/TpSlPoint/StockTag）+ 简化前端结构 + 市场数据配置骨架 | Agent |
+| 0.7.1 | 2026-07-04 | P0/P1 bugfix 版本：修复最新价跨股串号、删除股票 500、基本面首屏不展示、TuShareProvider 空壳穿透 | Agent |

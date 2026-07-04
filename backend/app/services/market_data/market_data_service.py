@@ -230,10 +230,16 @@ class MarketDataService:
 
         analyze = self._ensure_analyze(stock_id)
 
-        # DB 已有数据 → 直接返回
+        # DB 已有数据 → 校验有效性后返回（name 为空则视为空壳，重新拉取）
         if analyze.fundamentals_data:
             fd = analyze.fundamentals_data
-            return Fundamentals(**fd) if isinstance(fd, dict) else None
+            if isinstance(fd, dict) and fd.get("name"):
+                return Fundamentals(**fd)
+            # 数据无效（空壳），清掉并重新拉取
+            logger.warning(
+                "[market] stale empty fundamentals for %s, refetching", stock_id
+            )
+            analyze.fundamentals_data = None
 
         # DB 无数据 → 调用 Provider 拉取
         provider = self._router.get_provider(stock.exchange)

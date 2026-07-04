@@ -50,3 +50,7 @@ class Stock(Base):
     transactions = relationship(
         "Transaction", back_populates="stock", cascade="all, delete-orphan"
     )
+    # 关系：级联删除个股分析（1:1，会进一步级联删除 Report/TpSlPoint/StockTag）
+    stock_analyze = relationship(
+        "StockAnalyze", back_populates="stock", cascade="all, delete-orphan", uselist=False
+    )

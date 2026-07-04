@@ -102,12 +102,13 @@ st.title(f"{stock['name']} ({code_str})")
 pos = float(stock.get("position", 0))
 pnl = float(stock.get("historical_pnl", 0))
 
-# 实时价格 + 浮动盈亏
-price_data = st.session_state.get("price_single_cache") if st.session_state.get("data_initialized") else None
+# 实时价格 + 浮动盈亏（按 stock_id 缓存，避免跨股串价）
+_cache_key = f"price_cache_{stock_id}"
+price_data = st.session_state.get(_cache_key)
 if price_data is None:
     price_data = _api("GET", f"/stocks/{stock_id}/price", silent=True)
     if price_data:
-        st.session_state["price_single_cache"] = price_data
+        st.session_state[_cache_key] = price_data
 price_val = float(price_data["price"]) if price_data else None
 floating_pnl = price_val * pos + pnl if (price_val and pos) else pnl
 price_available = price_val is not None
@@ -174,16 +175,16 @@ st.divider()
 # ════════════════════════════════════════════
 st.subheader("📊 基本面数据")
 
-# 如无基本面数据且未初始化，自动触发刷新
+# 基本面为空 → 尝试单股按需拉取（而非批量刷新+门控，避免失败后永不重试）
 fundamentals = analyze.get("fundamentals_data") or {}
-if not fundamentals and not st.session_state.get("data_initialized"):
-    with st.spinner("正在拉取基本面数据..."):
-        result = _api("POST", "/market/refresh-fundamentals", silent=True)
-        if result:
-            st.session_state["data_initialized"] = True
-            st.rerun()
-
-fundamentals = analyze.get("fundamentals_data") or {}
+if not fundamentals:
+    fund_resp = _api("GET", f"/stocks/{stock_id}/fundamentals", silent=True)
+    if fund_resp and isinstance(fund_resp, dict) and fund_resp.get("source"):
+        # 成功落盘 → 重新获取 analyze 拿到 persisted data
+        analyze = _api("GET", f"/stock-analyze/stock/{stock_id}")
+        fundamentals = analyze.get("fundamentals_data") or {}
+    else:
+        st.caption("💡 该股票数据源暂不可用，暂无基本面数据")
 
 if fundamentals.get("source"):
     source_name = "yfinance" if fundamentals["source"] == "yfinance" else "TuShare" if fundamentals["source"] == "tushare" else fundamentals["source"]

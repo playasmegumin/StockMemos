@@ -36,7 +36,7 @@ class StockAnalyze(Base):
     )
 
     # 关系
-    stock = relationship("Stock")
+    stock = relationship("Stock", back_populates="stock_analyze")
     reports = relationship(
         "Report", back_populates="stock_analyze", cascade="all, delete-orphan"
     )

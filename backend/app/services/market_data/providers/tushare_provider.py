@@ -50,6 +50,12 @@ class TuShareProvider(BaseProvider):
             self._to_ts_code(symbol, exchange)
         )
 
+        # 校验：price <= 0 说明 TuShare 数据库中无此标的
+        if close_price <= 0:
+            raise RuntimeError(
+                f"TuShare: no price data for {self._to_ts_code(symbol, exchange)}"
+            )
+
         # 使用 A 股收盘时间 15:00 CST 作为 price_time
         if trade_date:
             dt = datetime.strptime(trade_date, "%Y%m%d")
@@ -117,7 +123,13 @@ class TuShareProvider(BaseProvider):
             yesterday = (date.today() - timedelta(days=1)).strftime("%Y%m%d")
             daily_basic = self._client.get_daily_basic(ts_code, yesterday)
 
+        # 校验：stock_basic 查不到名称说明该标的在 TuShare 数据库中不存在
         name = basic.get("name", "")
+        if not name:
+            raise RuntimeError(
+                f"TuShare: stock_basic not found for {ts_code}"
+            )
+
         industry = basic.get("industry")
         sector = basic.get("area")
 
