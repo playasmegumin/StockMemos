@@ -1,6 +1,6 @@
 # StockMemos — 项目文档
 
-> **文档版本**: 0.7.0
+> **文档版本**: 0.8.0
 > **文档职责**: 本文件是项目唯一的架构说明书、用户手册和开发需求文档。任何功能变更必须先修改此文档，再修改代码。
 > **文档驱动开发原则**: 后续每次迭代（Milestone / 功能模块）必须遵循「先更新本文档 → 再实现代码 → 再验证文档与代码一致」的流程。
 
@@ -24,7 +24,7 @@
 - US-005: 触发 Agent 分析股票基本面，生成分析报告
 - US-006: 触发 Agent 分析网络消息，通过多空辩论评估事件影响
 - US-007: 触发 Agent 分析历史交易数据，更新趋势预测
-- US-008: （计划中）市场行情数据实时展示与 K 线图
+- US-008: ✅ 市场行情数据实时展示与 K 线图（ECharts 交互式）
 
 ---
 
@@ -32,8 +32,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Streamlit Frontend                              │  ✅ 已实现
-│  持仓概览 │ 个股详情(标签/基本面/交易/报告)                    │
+│              Vue 3 Frontend (Vite + TDesign)                 │  ✅ v0.8.0
+│  持仓概览 │ 个股详情(分栏布局: K线/交易/报告/止盈止损)       │
 ├─────────────────────────────────────────────────────────────┤
 │              FastAPI Backend                                 │  ✅ 已实现
 │  个股CRUD │ 交易记录CRUD │ 个股分析CRUD │ Agent分析API       │
@@ -45,7 +45,7 @@
 │  DeepSeek(默认) / OpenAI / Claude                            │
 ├─────────────────────────────────────────────────────────────┤
 │              Data & Persistence                              │  ✅ 已实现
-│  TuShare(A股) │ PostgreSQL │ SMTP(邮件)                        │
+│  TuShare(A股) │ yfinance(港股/美股) │ PostgreSQL │ SMTP     │
 ├─────────────────────────────────────────────────────────────┤
 │              Output & Delivery                               │  ✅ 已实现
 │  分析报告 │ Agent 日志                                        │
@@ -64,11 +64,18 @@
 | 后端 | SQLAlchemy | 2.0.31 | ✅ |
 | 后端 | Alembic | 1.13.2 | ✅ |
 | 数据库 | PostgreSQL | 15 | ✅ (Docker) |
-| 前端 | Streamlit | 1.37.0 | ✅ (MVP) |
+| 前端 | **Vue 3** | 3.5.x | ✅ v0.8.0 |
+| 前端 | **Vite** | 6.x | ✅ |
+| 前端 | **TypeScript (strict)** | 5.x | ✅ |
+| 前端 | **TDesign Vue Next** | 1.20.x | ✅ |
+| 前端 | **Pinia** | 3.x | ✅ |
+| 前端 | **Vue Router 4** | 4.x | ✅ |
+| 前端 | **ECharts + vue-echarts** | 5.x / 7.x | ✅ |
+| 前端 | **UnoCSS** | 66.x | ✅ |
 | 数据 | TuShare Pro（A 股） | 1.4.29 | ✅ |
-| 数据 | yfinance（港股/美股） | 0.2.58+ | ⏳ 待添加（后续变更） |
-| LLM | DeepSeek | ✅ | 已接入 |
-| LLM | OpenAI / Claude | ✅ | 备选（自动降级）|
+| 数据 | yfinance（港股/美股） | 0.2.58+ | ✅ |
+| LLM | DeepSeek | | ✅ 已接入 |
+| LLM | OpenAI / Claude | | ✅ 备选（自动降级）|
 
 **严禁更换的技术栈**:
 - 不使用 LangChain / CrewAI 等重型框架（自研轻量 Agent）
@@ -147,11 +154,63 @@ StockMemos/
 │           └── technical_agent.py   # ✅ 交易数据分析
 │
 └── frontend/
-    ├── Dockerfile              # Python 3.11 Slim + Streamlit
-    ├── requirements.txt
-    ├── streamlit_app.py        # 持仓概览首页（股票列表+添加）
-    └── pages/
-        └── stock_detail.py     # 个股详情页（标签/基本面/TP-SL/交易/报告）
+    ├── Dockerfile              # Node 22 Alpine → nginx:alpine
+    ├── Dockerfile.streamlit    # (已废弃) Streamlit Python Dockerfile
+    ├── nginx.conf              # SPA fallback + /api proxy
+    ├── package.json            # pnpm 依赖管理
+    ├── pnpm-lock.yaml
+    ├── tsconfig.json           # TypeScript strict 模式
+    ├── vite.config.ts          # Vite 构建 + API proxy + UnoCSS
+    ├── vitest.config.ts        # 单元测试配置
+    ├── uno.config.ts           # UnoCSS 原子类配置
+    ├── .npmrc                  # pnpm 配置（允许 esbuild/vue-demi 构建脚本）
+    ├── index.html              # 入口 HTML
+    ├── src/
+    │   ├── main.ts             # Vue 应用入口（注册 Pinia/Router/TDesign）
+    │   ├── App.vue             # 根组件（侧边栏 + router-view）
+    │   ├── router/index.ts     # 路由：/ 持仓概览，/stock/:id 个股详情
+    │   ├── stores/             # Pinia 状态管理
+    │   │   ├── portfolio.ts    # 持仓列表（离开清除）
+    │   │   ├── stock.ts        # 个股详情（离开清除）
+    │   │   └── kline.ts        # K 线数据（缓存保持）
+    │   ├── api/                # Axios API 层（Result<T> 模式）
+    │   │   ├── client.ts       # 统一客户端 + 请求去重
+    │   │   ├── stocks.ts
+    │   │   ├── transactions.ts
+    │   │   ├── stockAnalyze.ts # 分析/报告/标签/止盈止损
+    │   │   └── market.ts       # 行情/价格/K线/刷新
+    │   ├── types/              # TypeScript 类型定义
+    │   │   ├── api.ts          # Result<T> 通用类型
+    │   │   ├── stock.ts
+    │   │   ├── transaction.ts
+    │   │   ├── stockAnalyze.ts
+    │   │   └── market.ts
+    │   ├── pages/
+    │   │   ├── PortfolioDashboard.vue  # 持仓概览首页
+    │   │   └── StockDetail.vue         # 个股详情（分栏布局）
+    │   ├── components/
+    │   │   ├── layout/
+    │   │   │   └── AppSidebar.vue      # TDesign Menu 侧边栏
+    │   │   ├── dashboard/
+    │   │   │   ├── KpiCards.vue        # KPI 汇总卡片
+    │   │   │   └── StockTable.vue      # 可排序持仓表格
+    │   │   ├── stock/
+    │   │   │   ├── InfoPanel.vue       # 左侧信息面板
+    │   │   │   ├── TransactionList.vue
+    │   │   │   ├── TransactionEditor.vue
+    │   │   │   ├── ReportList.vue
+    │   │   │   └── TpSlManager.vue
+    │   │   └── chart/
+    │   │       └── KlineChart.vue      # ECharts K线图
+    │   └── utils/
+    │       └── format.ts       # 金额/百分比/日期格式化（万/亿）
+    └── tests/
+        ├── api/
+        │   └── client.test.ts
+        ├── stores/
+        │   └── portfolio.test.ts
+        └── utils/
+            └── format.test.ts
 ```
 
 ---
@@ -229,7 +288,7 @@ StockMemos/
 | tag | VARCHAR(50) | NOT NULL | 标签（自由文本，如分红/投机/成长/价值） |
 | created_at | TIMESTAMP | DEFAULT NOW() | 创建时间 |
 
-### 5.7 kline_daily（日 K 线）📅 计划中
+### 5.7 kline_daily（日 K 线）✅ 已实现
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | stock_id | VARCHAR(36) | PK, FK → stock.id ON DELETE CASCADE | 关联股票 |
@@ -241,7 +300,7 @@ StockMemos/
 | volume | NUMERIC(20,4) | NOT NULL | 成交量（股数） |
 | amount | NUMERIC(20,4) | NOT NULL | 成交额（元/港币/美元） |
 
-> PK 为 (stock_id, trade_date)，天然去重。此表尚未创建，对应 REQUIREMENTS_MARKET_DATA.md 与 PLAN.md，待后续变更实现。
+> PK 为 (stock_id, trade_date)，天然去重。Provider 层自动拉取并 UPSERT 写入。
 
 ---
 
@@ -293,36 +352,52 @@ StockMemos/
 | POST | `/api/stock-analyze/{id}/stock-tags` | 创建标签 |
 | DELETE | `/api/stock-analyze/{id}/stock-tags/{tid}` | 删除标签 |
 
-### 6.5 行情数据 API 📅 计划中
+### 6.5 行情数据 API ✅ 已实现
 | 方法 | 路径 | 说明 | 状态 |
 |------|------|------|------|
-| GET | `/api/stocks/{id}/price` | 获取实时行情（纯内存，不落盘） | 📅 |
-| GET | `/api/stocks/{id}/kline?start=&end=` | 获取日 K 线（DB 持久化） | 📅 |
-| GET | `/api/stocks/{id}/fundamentals` | 获取基本面数据（DB 持久化） | 📅 |
-| POST | `/api/market/refresh` | 批量刷新所有股票日K+基本面 | 📅 |
-| POST | `/api/market/refresh-fundamentals` | 仅批量刷新所有股票基本面 | 📅 |
+| GET | `/api/stocks/{id}/price` | 获取实时行情（纯内存，不落盘） | ✅ |
+| GET | `/api/stocks/{id}/kline?start=&end=` | 获取日 K 线（DB 持久化） | ✅ |
+| GET | `/api/stocks/{id}/fundamentals` | 获取基本面数据（DB 持久化） | ✅ |
+| POST | `/api/market/refresh` | 批量刷新所有股票日K+基本面 | ✅ |
+| POST | `/api/market/refresh-fundamentals` | 仅批量刷新所有股票基本面 | ✅ |
 
-> 实时行情不持久化，仅在前端页面打开时调用。日K + 基本面存储在 PostgreSQL，每日首次打开页面时自动触发刷新。对应 REQUIREMENTS_MARKET_DATA.md 与 PLAN.md。
+> 实时行情不持久化，仅在前端页面打开时调用。日K + 基本面存储在 PostgreSQL。
 
 ---
 
-## 7. 前端页面（Streamlit MVP）
+## 7. 前端页面（Vue 3 + TDesign）
 
 ### 7.1 持仓概览（首页） ✅
-- 顶部卡片：股票数量 · 总持仓量 · 历史盈亏 · 持仓股票数
-- 股票列表：代码、名称、货币、持仓量、盈亏、标签
-- 操作按钮：详情查看 / 删除个股
-- 添加个股表单（内联，置于列表底部）
+- 顶部 4 个 KPI 卡片：股票数量 · 总持仓量 · 总盈亏 · 盈利股票数
+- 可排序股票表格：代码、名称、交易所、持仓量、盈亏（颜色编码）、现价、标签、操作
+- 股票名称可点击跳转个股详情，现价自动拉取（超 1 小时提示过期）
+- 添加个股弹窗（交易所/代码/名称/货币表单）
+- 删除个股确认弹窗
+- 刷新行情按钮（调用 `POST /api/market/refresh`）
 - 对接后端：`GET /api/stocks` + `DELETE /api/stocks/{id}` + `POST /api/stocks`
 
-### 7.2 个股详情页 ✅
-- 基本信息卡片：持仓量、历史盈亏、交易所、货币
-- **标签管理**：显示已有标签（可删除）+ 内联添加新标签
-- **基本面数据**：结构化表单（PE_TTM/PB/ROE/市值/股息率/营收增长率/净利率/资产负债率）+ 字段注解 + 保存按钮
-- **止盈止损点**：列表展示（类型/价格/备注）+ 内联添加
-- **交易记录**：列表展示（买入/卖出标识、价格、数量、手续费、交易日期）+ 内联添加 + 行内编辑 + 删除
-- **分析报告**：标签页展示 + 添加表单
+### 7.2 个股详情页（分栏布局） ✅
+- **左侧信息面板**：股票代码/名称、当前价、持仓量、盈亏（颜色编码）
+- **基本面**：key-value 列表（PE/PB/ROE/市值/股息率/净利润率/负债比等），支持 万/亿 格式化
+- **标签管理**：TDesign Tag 组件，支持添加（回车）和删除（×）
+- **右上方**：**ECharts 交互式 K 线图**（日K + MA5/20/60 + 成交量柱状图 + brush 缩放）
+- **右下方 Tab**：交易记录 / 分析报告 / 止盈止损
 - 对接后端：`GET/PUT /api/stocks/{id}` + `/api/stock-analyze/**` + `/api/transactions/**`
+
+### 7.3 交易记录管理 ✅
+- 可排序表格：交易日期、方向（买入=红/卖出=绿）、价格、数量、佣金、合计
+- 内联添加表单（日期选择器 + 买卖方向 + 数量 + 价格 + 佣金）
+- 行内编辑（点击行进入编辑模式）
+- 删除确认弹窗
+- 增删改自动重算持仓和盈亏
+
+### 7.4 分析报告 ✅
+- 报告列表（按生成时间降序），点击展开/折叠内容
+- 添加报告表单（标题 + 正文）
+
+### 7.5 止盈止损 ✅
+- 止盈/止损/目标估值点列表（类型颜色编码）
+- 添加表单 + 删除确认
 
 ---
 
@@ -355,7 +430,7 @@ DB_PASSWORD=changeme
 # TuShare（A 股）
 TUSHARE_TOKEN=your_tushare_pro_token_here
 
-# 行情数据源（按交易所配置，待实现）
+# 行情数据源（按交易所配置）
 # 可选值: yfinance / Tushare
 MARKET_DATA_SOURCE_CN=Tushare
 MARKET_DATA_SOURCE_HK=yfinance
@@ -399,7 +474,7 @@ LOG_LEVEL=INFO
 - [x] 重构为新模型体系：Stock, Transaction, StockAnalyze, Report, TpSlPoint, StockTag
 - [x] Migration 005-006：删除旧表 portfolio/trade_point，删除废弃表（watchlist/investment_memo/event_node/analysis_report/strategy 等），创建新表
 - [x] 重写 API 路由：/api/stocks、/api/transactions、/api/stock-analyze（含子路由）
-- [x] 重写 Streamlit 页面：持仓概览 + 个股详情
+- [x] 重写前端页面：持仓概览 + 个股详情（当时 Streamlit，后替换为 Vue）
 
 ### Milestone 4: Agent 分析 ✅（已完成）
 - [x] LLM Router 封装（DeepSeek + 备选）
@@ -413,13 +488,21 @@ LOG_LEVEL=INFO
 - [x] .env 模板和配置说明（.env.example）
 - [x] 局域网部署文档（DEPLOYMENT.md）
 
-### Milestone 6: 市场行情数据 📅（计划中）
-- [ ] 添加 yfinance 依赖 + Alembic 迁移（kline_daily 表）
-- [ ] Provider 适配器层：BaseProvider + TuShareProvider + YFinanceProvider + Router + Service
-- [ ] REST API 端点：/price /kline /fundamentals /refresh
-- [ ] 前端行情展示 + 刷新按钮
-- [ ] MA120 等技术指标 + K 线图
-- [ ] 对应 REQUIREMENTS_MARKET_DATA.md 与 PLAN.md
+### Milestone 6: 市场行情数据 ✅（已完成）
+- [x] 添加 yfinance 依赖 + Alembic 迁移（kline_daily 表）
+- [x] Provider 适配器层：BaseProvider + TuShareProvider + YFinanceProvider + Router + Service
+- [x] REST API 端点：/price /kline /fundamentals /refresh
+- [x] 前端行情展示 + 刷新按钮（Vue + ECharts）
+- [x] MA5/MA20/MA60 均线 + K 线图
+
+### Milestone 7: Vue 前端重写 ✅（已完成）
+- [x] Streamlit → Vue 3 + Vite + TypeScript 全量替换
+- [x] TDesign Vue Next UI 组件库 + UnoCSS 布局
+- [x] Pinia 状态管理 + Axios Result<T> 模式
+- [x] ECharts 交互式 K 线图（brush 缩放）
+- [x] 个股详情分栏布局（左侧面板 + K 线 + Tab 内容）
+- [x] Docker 多阶段构建（node:22 → nginx）
+- [x] vitest 单元测试（API 层 + stores + 工具函数）
 
 ---
 
@@ -443,6 +526,7 @@ docker compose up --build -d
 ### 11.2 日常操作
 ```bash
 docker compose up -d          # 启动
+docker compose up -d --build frontend  # 重新构建前端
 docker compose down -v        # 停止并删除数据卷（重置）
 docker compose logs -f backend # 查看后端日志
 docker compose build backend  # 重新构建后端
@@ -485,3 +569,4 @@ docker compose build backend  # 重新构建后端
 | 0.6.0 | 2026-07-03 | 多数据源行情扩展方案前置：yfinance 港股/美股支持方案、Provider 适配器模式设计、kline_daily 表设计、降级策略 | Agent |
 | 0.7.0 | 2026-07-03 | 全局设计文档对齐实际代码：移除旧模型/API 描述，重写为新模型体系（Stock/Transaction/StockAnalyze/Report/TpSlPoint/StockTag）+ 简化前端结构 + 市场数据配置骨架 | Agent |
 | 0.7.1 | 2026-07-04 | P0/P1 bugfix 版本：修复最新价跨股串号、删除股票 500、基本面首屏不展示、TuShareProvider 空壳穿透 | Agent |
+| 0.8.0 | 2026-07-09 | Streamlit → Vue 3 全量替换：Vite + TypeScript + TDesign Vue Next + Pinia + ECharts + UnoCSS。分栏布局个股详情、Result<T> API 模式、Docker 多阶段构建 | Agent |

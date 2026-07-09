@@ -75,3 +75,5 @@ openspec/
 # Project working docs (not part of release)
 BUGS.md
 REQUIREMENTS_MARKET_DATA.md
+node_modules/
+frontend/dist/

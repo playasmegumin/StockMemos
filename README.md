@@ -1,34 +1,37 @@
 # StockMemos
 
-本地部署的投研助手。通过 Streamlit Dashboard 管理自选股和交易记录。**不涉及实盘交易**，仅提供研究与决策支持。
+本地部署的投研助手。通过 Vue 3 Dashboard 管理自选股、交易记录和 AI 分析报告。**不涉及实盘交易**，仅提供研究与决策支持。
 
 ## 技术栈
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
 | 后端框架 | FastAPI + Uvicorn | REST API 服务 |
-| 前端框架 | Streamlit | 零前端代码 Dashboard |
+| 前端框架 | **Vue 3 + Vite + TypeScript** | TDesign Vue Next + Pinia + ECharts |
+| CSS | UnoCSS | 原子类布局 |
 | 数据库 | PostgreSQL 15 | Docker 部署，Alembic 迁移管理 |
-| 股票数据源 | 多个专用适配器 | 行情/基本面/K 线 |
+| 股票数据源 | 多个专用适配器 | TuShare(A股) / yfinance(港股/美股) |
 | 容器化 | Docker Compose | db + backend + frontend 一键启动 |
 
 ## 架构概览
 
 ```
-Streamlit Frontend（持仓概览 / 个股详情）
-         │
-         ▼  REST API (port 8080)
+Vue 3 Frontend（Vite + TDesign + ECharts）
+  ├── 持仓概览（KPI 卡片 + 可排序表格 + 现价）
+  ├── 个股详情（分栏布局：信息面板 / K线图 / 交易/报告/止盈止损）
+  └── 交互式 K 线图（MA5/20/60 + 缩放 + 成交量）
+          │
+          ▼  REST API (port 8080)
 FastAPI Backend
     ├── 个股 CRUD / 交易 CRUD / 分析 CRUD
-    └── Market Data Service（多数据源适配层）
-          ├── TuShareProvider（A 股）
-          ├── AKShareProvider（港股）
-          ├── FinnhubProvider（美股）
-          └── kline_daily 表（DB 降级兜底）
-         │
-         ▼
-PostgreSQL（持久化记录自股票信息）
-```
+    ├── Market Data Service（多数据源适配层）
+    │     ├── TuShareProvider（A 股）
+    │     ├── YFinanceProvider（港股/美股）
+    │     └── kline_daily 表（DB 降级兜底）
+    └── Agent 分析（基本面 / 多空辩论 / 技术分析）
+          │
+          ▼
+PostgreSQL（持久化）
 
 ## 快速启动
 
@@ -79,11 +82,19 @@ stockmemos/
 │       │   └── report_generator.py     # 报告生成
 │       └── agents/                     # 3 类 AI Agent
 │
-└── frontend/
-    ├── Dockerfile
-    ├── streamlit_app.py                # 持仓概览首页
-    └── pages/
-        └── stock_detail.py             # 个股详情页
+└── frontend/                 # Vue 3 前端（Vite + TypeScript + TDesign）
+    ├── Dockerfile              # Node 22 → nginx 多阶段构建
+    ├── nginx.conf              # SPA fallback + /api 反向代理
+    ├── package.json / pnpm-lock.yaml
+    ├── vite.config.ts
+    ├── src/
+    │   ├── main.ts / App.vue
+    │   ├── router/ / stores/ / api/ / types/
+    │   ├── pages/              # PortfolioDashboard + StockDetail
+    │   ├── components/         # KpiCards, StockTable, InfoPanel,
+    │   │                       # KlineChart, TransactionList, etc.
+    │   └── utils/
+    └── tests/                  # vitest
 ```
 
 ## 配置说明
@@ -126,7 +137,9 @@ stockmemos/
 | 项目 | 用途 |
 |------|------|
 | [FastAPI](https://fastapi.tiangolo.com/) | 后端 API 框架 |
-| [Streamlit](https://streamlit.io/) | 前端 Dashboard |
+| [Vue 3](https://vuejs.org/) | 前端框架 |
+| [TDesign Vue Next](https://tdesign.tencent.com/vue-next/) | UI 组件库 |
+| [ECharts](https://echarts.apache.org/) | K 线图可视化 |
 | [TuShare](https://tushare.pro/) | A 股行情与基本面数据 |
 | [PostgreSQL](https://www.postgresql.org/) | 数据持久化 |
 | [Docker](https://www.docker.com/) | 容器化部署 |
