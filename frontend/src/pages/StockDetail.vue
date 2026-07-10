@@ -25,7 +25,7 @@
     </div>
 
     <!-- Right side -->
-    <div class="col-span-1 row-span-1 grid grid-rows-[1fr_auto] gap-4 overflow-hidden min-h-0">
+    <div class="stock-detail-right grid grid-rows-[1fr_auto] gap-4 overflow-hidden min-h-0">
       <div class="bg-white rounded-lg shadow-sm p-4 overflow-hidden min-h-0">
         <KlineChart />
       </div>
@@ -102,3 +102,34 @@ onUnmounted(() => {
   // intentionally keep klineStore data
 })
 </script>
+
+<style scoped>
+/* Inline critical grid layout to avoid UnoCSS injection timing issues */
+.stock-detail {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 1rem;
+  height: 100%;
+}
+.stock-detail > :nth-child(1) {
+  grid-column: span 2;
+  grid-row: span 1;
+}
+.stock-detail > :nth-child(2) {
+  grid-column: span 1;
+  grid-row: span 1;
+}
+.stock-detail > :nth-child(3) {
+  grid-column: span 1;
+  grid-row: span 1;
+}
+/* Right side inner grid */
+.stock-detail-right {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 1rem;
+  overflow: hidden;
+  min-height: 0;
+}
+</style>
