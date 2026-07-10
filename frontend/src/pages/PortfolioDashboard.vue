@@ -22,7 +22,7 @@
     </t-alert>
 
     <!-- Content -->
-    <KpiCards :stocks="store.stocks" />
+    <KpiCards :stocks="store.stocks" :total-position-cny="totalPositionCny" />
     <PortfolioTreemap :stocks="store.stocks" />
     <StockTable
       :stocks="store.stocks"
@@ -79,11 +79,13 @@
 import { onMounted, ref } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { MessagePlugin } from 'tdesign-vue-next'
+import { computeAllPositionValues } from '@/utils/positionValue'
 import KpiCards from '@/components/dashboard/KpiCards.vue'
 import PortfolioTreemap from '@/components/dashboard/PortfolioTreemap.vue'
 import StockTable from '@/components/dashboard/StockTable.vue'
 
 const store = usePortfolioStore()
+const totalPositionCny = ref(0)
 
 // Refresh
 const refreshing = ref(false)
@@ -164,5 +166,12 @@ async function handleDeleteStock() {
 // First load — only fetch stocks list, do NOT auto-refresh market data (too slow)
 onMounted(async () => {
   await store.fetchAll()
+  // Compute total position value in CNY (SUM of rate × price × position)
+  const pv = await computeAllPositionValues(store.stocks)
+  let total = 0
+  for (const v of pv.values()) {
+    total += v.value
+  }
+  totalPositionCny.value = total
 })
 </script>

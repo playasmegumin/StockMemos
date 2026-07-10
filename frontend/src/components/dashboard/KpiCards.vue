@@ -35,12 +35,12 @@ import { fmtAmount, fmtPnl } from '@/utils/format'
 
 const props = defineProps<{
   stocks: Stock[]
-  totalPositionValue?: number
+  totalPositionCny?: number
 }>()
 
 const stockCount = computed(() => props.stocks.length)
 const totalPnl = computed(() => props.stocks.reduce((s, st) => s + st.historical_pnl, 0))
-const totalPositionValue = computed(() => props.totalPositionValue ?? 0)
+const totalPositionValue = computed(() => props.totalPositionCny ?? 0)
 </script>
 
 <style scoped>
