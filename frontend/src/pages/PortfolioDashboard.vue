@@ -21,8 +21,9 @@
       </template>
     </t-alert>
 
-    <!-- Content: always show data, loading overlay only on explicit refresh -->
+    <!-- Content -->
     <KpiCards :stocks="store.stocks" />
+    <PortfolioTreemap :stocks="store.stocks" />
     <StockTable
       :stocks="store.stocks"
       @delete-stock="openDeleteDialog"
@@ -79,6 +80,7 @@ import { onMounted, ref } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { MessagePlugin } from 'tdesign-vue-next'
 import KpiCards from '@/components/dashboard/KpiCards.vue'
+import PortfolioTreemap from '@/components/dashboard/PortfolioTreemap.vue'
 import StockTable from '@/components/dashboard/StockTable.vue'
 
 const store = usePortfolioStore()

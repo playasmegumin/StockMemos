@@ -64,7 +64,7 @@
       <t-input
         v-model="newTag"
         placeholder="输入标签后按回车添加"
-        @keydown.enter="handleAddTag"
+        @enter="handleAddTag"
         clearable
         size="small"
       />
