@@ -11,4 +11,5 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.use(TDesign)
-app.mount('#app')
+// Small delay to ensure CSS modules are injected before first render
+requestAnimationFrame(() => app.mount('#app'))

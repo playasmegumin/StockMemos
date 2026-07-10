@@ -15,8 +15,9 @@
       </div>
 
       <!-- Treemap — 居中，不超过版面 60%，16:9 -->
-      <div v-else class="flex justify-center">
+      <div v-else class="flex justify-center" style="width:100%">
         <VChart
+          ref="chartRef"
           :option="chartOption"
           autoresize
           style="width: 100%; max-width: 60%; aspect-ratio: 16/9; min-height: 250px"
@@ -27,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { TreemapChart } from 'echarts/charts'
@@ -45,6 +46,7 @@ const props = defineProps<{
 }>()
 
 const loading = ref(true)
+const chartRef = ref<InstanceType<typeof VChart> | null>(null)
 const positionValues = ref(new Map<string, { value: number; price: number; source: string }>())
 const stockTags = ref(new Map<string, string[]>()
 )
@@ -266,6 +268,8 @@ async function loadData() {
   }))
   stockTags.value = tagMap
   loading.value = false
+  // Force chart resize after data loads to ensure correct layout
+  nextTick(() => { chartRef.value?.resize() })
 }
 
 onMounted(loadData)
