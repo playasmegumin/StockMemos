@@ -573,9 +573,37 @@ LOG_LEVEL=INFO
 
 ---
 
-## 12. 快速启动
+## 12. 需求管理方法
 
-### 11.1 首次启动
+### 12.1 OpenSpec 工作流
+
+本项目使用 OpenSpec 进行需求登记和变更管理，工作流如下：
+
+```
+grilling（多轮问答明确需求）
+    → openspec propose（生成 proposal / design / specs / tasks）
+    → 实现（按 tasks 逐项完成）
+    → openspec archive（归档变更，记录 result.json）
+```
+
+### 12.2 OpenSpec 与 Git 的关系
+
+`openspec/` 目录**不被 Git 追踪**（在 `.gitignore` 中排除）。原因：
+
+1. **OpenSpec 是本地工作缓存**：change 目录中的 artifacts（proposal、design、specs、tasks）是开发过程中的临时产物，archived 后可通过 `result.json` 追溯
+2. **避免噪音**：specs 频繁随讨论调整，追踪会产生大量与源代码无关的变更
+3. **主规格文档在 PROJECT.md 中**：功能定义的权威来源是本文档的"规划功能需求定义"章节，OpenSpec specs 是过程记录
+4. **归档即持久化**：完成 change 后 `result.json` 记录了关键决策，足以复盘
+
+### 12.3 变更记录流程
+
+1. 新需求或 Bug → 在当前会话中通过 grilling 明确需求
+2. 需求明确后 → 更新 PROJECT.md 对应章节
+3. 实现完成后 → 更新 PROJECT.md 版本号和变更日志
+
+## 13. 快速启动
+
+### 13.1 首次启动
 ```bash
 # 1. 准备环境变量
 cp .env.example .env
@@ -590,7 +618,7 @@ docker compose up --build -d
 # API文档: http://localhost:8080/docs
 ```
 
-### 11.2 日常操作
+### 13.2 日常操作
 ```bash
 docker compose up -d          # 启动
 docker compose up -d --build frontend  # 重新构建前端
@@ -599,7 +627,7 @@ docker compose logs -f backend # 查看后端日志
 docker compose build backend  # 重新构建后端
 ```
 
-### 11.3 数据库迁移
+### 13.3 数据库迁移
 ```bash
 # 进入后端容器执行
  docker exec -it trading-backend bash
@@ -610,7 +638,7 @@ docker compose build backend  # 重新构建后端
 
 ---
 
-## 13. 关键约束（开发红线）
+## 14. 关键约束（开发红线）
 
 1. **用户不直接输入 Prompt**：所有 Agent 输入由 Dashboard 操作转化为结构化 JSON
 2. **数据源限流处理**：所有外部数据源请求必须加缓存和重试（3 次 + 指数退避）。TuShare 遵守 1 小时 TTL，yfinance 遵守每秒最多 1 次请求
@@ -624,7 +652,7 @@ docker compose build backend  # 重新构建后端
 
 ---
 
-## 14. 文档版本变更日志
+## 15. 文档版本变更日志
 
 | 版本 | 日期 | 变更内容 | 变更人 |
 |------|------|----------|--------|
