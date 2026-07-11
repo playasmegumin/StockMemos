@@ -28,6 +28,7 @@
       :stocks="store.stocks"
       @delete-stock="openDeleteDialog"
       @add-stock="addDialogVisible = true"
+      @refresh-stock="handleRefreshStock"
     />
 
     <!-- Add Stock Dialog -->
@@ -133,6 +134,16 @@ async function handleDeleteStock() {
     MessagePlugin.success('删除成功')
   } else {
     MessagePlugin.warning(r.error || '删除失败')
+  }
+}
+
+// Refresh Stock — 重新拉取股票基本数据
+async function handleRefreshStock(id: string) {
+  const r = await store.refreshStock(id)
+  if (r.ok) {
+    MessagePlugin.success('已刷新')
+  } else {
+    MessagePlugin.warning(r.error || '刷新失败')
   }
 }
 

@@ -42,6 +42,17 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     return r
   }
 
+  async function refreshStock(id: string) {
+    const r = await stocksApi.refreshStock(id)
+    if (r.ok) {
+      const idx = stocks.value.findIndex(s => s.id === id)
+      if (idx !== -1) {
+        stocks.value[idx] = r.data
+      }
+    }
+    return r
+  }
+
   async function refreshMarket() {
     loading.value = true
     const r = await refreshMarketApi()
@@ -62,6 +73,6 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   return {
     stocks, loading, error,
     stockCount, totalPosition, totalPnl, profitableCount,
-    fetchAll, addStock, removeStock, refreshMarket, $reset,
+    fetchAll, addStock, removeStock, refreshStock, refreshMarket, $reset,
   }
 })

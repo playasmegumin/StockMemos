@@ -294,3 +294,83 @@ def delete_stock(id: str, db: Session = Depends(get_db)):
     db.delete(item)
     db.commit()
     return None
+
+
+# ────────────────────────────────
+# 刷新个股基本信息
+# ────────────────────────────────
+
+@router.post("/{id}/refresh", response_model=StockResponse)
+def refresh_stock(id: str, db: Session = Depends(get_db)):
+    """重新拉取股票基本数据并更新数据库
+
+    当添加股票时数据源不可用（如 yfinance 限流）导致名称为空，
+    可用此接口手动触发重新查询并修正。
+    """
+    item = db.query(Stock).filter(Stock.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="个股不存在")
+
+    # 通过 Provider 重新查询基本信息
+    router_p = ProviderRouter()
+    name_updated = False
+    try:
+        provider = router_p.get_provider(item.exchange)
+        fund = provider.get_fundamentals(item.symbol, item.exchange)
+        if fund and fund.name:
+            item.name = fund.name
+            name_updated = True
+    except Exception:
+        pass
+
+    # A 股 TuShare 兜底
+    if not name_updated and item.exchange in ("SH", "SZ"):
+        try:
+            ts_client = TushareClient()
+            ts_code = f"{item.symbol}.{item.exchange}"
+            basic = ts_client.get_stock_basic(ts_code)
+            if basic and basic.get("name"):
+                item.name = basic["name"]
+                name_updated = True
+            if not name_updated:
+                fund_info = ts_client.get_fund_basic(ts_code)
+                if fund_info and fund_info.get("name"):
+                    item.name = fund_info["name"]
+                    name_updated = True
+        except Exception:
+            pass
+
+    # 美股 Finnhub 兜底
+    if not name_updated and item.exchange == "US":
+        try:
+            import finnhub
+            from app.config import settings as app_settings
+            if app_settings.finnhub_api_key:
+                fc = finnhub.Client(api_key=app_settings.finnhub_api_key)
+                profile = fc.company_profile2(symbol=item.symbol)
+                if profile and profile.get("name"):
+                    item.name = profile["name"]
+                    name_updated = True
+        except Exception:
+            pass
+
+    # yfinance 兜底（港股/其他）
+    if not name_updated:
+        try:
+            import yfinance as yf
+            if item.exchange == "HK":
+                yf_symbol = item.symbol.lstrip("0")
+                ticker = yf.Ticker(f"{yf_symbol}.HK")
+            else:
+                ticker = yf.Ticker(item.symbol)
+            info = ticker.info or {}
+            name = info.get("longName") or info.get("shortName")
+            if name:
+                item.name = name
+                name_updated = True
+        except Exception:
+            pass
+
+    db.commit()
+    db.refresh(item)
+    return _to_stock_response(item)

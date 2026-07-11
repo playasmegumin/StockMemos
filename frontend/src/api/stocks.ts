@@ -21,3 +21,7 @@ export function updateStock(id: string, data: StockUpdate): Promise<Result<Stock
 export function deleteStock(id: string): Promise<Result<true>> {
   return wrapResult<true>({ method: 'DELETE', url: `/stocks/${id}` })
 }
+
+export function refreshStock(id: string): Promise<Result<Stock>> {
+  return wrapResult<Stock>({ method: 'POST', url: `/stocks/${id}/refresh` })
+}

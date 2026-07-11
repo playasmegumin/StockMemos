@@ -29,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'delete-stock', id: string): void
   (e: 'add-stock'): void
+  (e: 'refresh-stock', id: string): void
 }>()
 
 const router = useRouter()
@@ -91,6 +92,10 @@ const columns = computed(() => [
           style: 'color:#1677ff;cursor:pointer',
           onClick: () => router.push(`/stock/${row.id}`),
         }, '详情'),
+        h('a', {
+          style: 'color:#1677ff;cursor:pointer',
+          onClick: () => emit('refresh-stock', row.id),
+        }, '重置'),
         h('a', {
           style: 'color:#e74c3c;cursor:pointer',
           onClick: () => emit('delete-stock', row.id),
