@@ -26,7 +26,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     loading.value = false
   }
 
-  async function addStock(data: { exchange: string; symbol: string; name: string; currency: string }) {
+  async function addStock(data: { symbol: string; name?: string }) {
     const r = await stocksApi.createStock(data)
     if (r.ok) {
       stocks.value.push(r.data)

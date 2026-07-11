@@ -183,3 +183,70 @@ class TushareClient:
         if df is not None and not df.empty:
             return df.where(pd.notnull(df), None).iloc[0].to_dict()
         return None
+
+    # ─── 基金/ETF 接口 ────────────────────────────────
+
+    def get_fund_basic(self, ts_code: str) -> Optional[Dict[str, Any]]:
+        """获取基金基本信息（ETF/LOF 等）
+
+        Args:
+            ts_code: 如 518600.SH
+
+        Returns:
+            {"ts_code", "name", "management", "market", ...} 或 None（无数据）
+        """
+        df = self._call(
+            "fund_basic",
+            ts_code=ts_code,
+            fields="ts_code,name,management,custodian,found_date,issue_date,market,issue_amount",
+        )
+        if df is not None and not df.empty:
+            return df.where(pd.notnull(df), None).iloc[0].to_dict()
+        return None
+
+    def get_fund_daily(
+        self,
+        ts_code: str,
+        start_date: str,
+        end_date: str,
+    ) -> List[Dict[str, Any]]:
+        """获取基金日行情（含 ETF/LOF 的日 K 线）
+
+        Args:
+            ts_code: 如 518600.SH
+            start_date: 如 20240101
+            end_date: 如 20240630
+
+        Returns:
+            [{"ts_code", "trade_date", "open", "high", "low", "close",
+              "pre_close", "pct_chg", "vol", "amount"}, ...]
+        """
+        df = self._call(
+            "fund_daily",
+            ts_code=ts_code,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if df is not None and not df.empty:
+            records = df.where(pd.notnull(df), None).to_dict(orient="records")
+            return records
+        return []
+
+    def get_fund_latest_price(self, ts_code: str) -> tuple[float, str | None]:
+        """获取基金/ETF 最新交易日收盘价
+
+        Returns:
+            (price, trade_date_str)  — 如 (8.902, "20260710")
+            (0.0, None)              — 无数据
+        """
+        df = self._call(
+            "fund_daily",
+            ts_code=ts_code,
+            limit=1,
+            fields="ts_code,trade_date,close",
+        )
+        if df is not None and not df.empty:
+            close_price = df.iloc[0]["close"]
+            trade_date = str(df.iloc[0]["trade_date"])
+            return float(close_price), trade_date
+        return 0.0, None

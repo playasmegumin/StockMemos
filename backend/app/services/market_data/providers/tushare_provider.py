@@ -1,21 +1,24 @@
 """TuShareProvider — A 股数据源适配器
 
-覆盖 A 股（SH/SZ/CN）数据：
-- 日 K 线 → TushareClient.get_daily_kline()
+覆盖 A 股（SH/SZ）数据：
+- 日 K 线 → TushareClient.get_daily_kline() 或 get_fund_daily()
 - 基本面 → TushareClient.get_daily_basic() + get_stock_basic()
 - 实时行情 → 降级为最近日 K 收盘价（TuShare 2000 分不支持盘中实时）
 
-注：TuShare 可通过 symbol 前缀自判交易所（6xx→上海，其余→深圳），
-    因此不需要在 ts_code 中附带交易所后缀。
+ETF/基金识别：
+    使用 stock_classifier.classify() 判断标的类型。
+    若 type=fund → 使用 fund_basic/fund_daily 通路。
+    若 fund_basic 返回空 → fallback 到 stock 通路。
 """
 
 import logging
 from datetime import date, datetime, timezone, timedelta
-from typing import List, Set
+from typing import List, Optional, Set
 
 from app.services.market_data.provider_base import BaseProvider
 from app.services.market_data.schemas import CurrentPrice, DailyKline, Fundamentals
 from app.services.tushare_client import TushareClient
+from app.services.market_data.stock_classifier import classify
 
 logger = logging.getLogger(__name__)
 
@@ -34,26 +37,56 @@ class TuShareProvider(BaseProvider):
         """构造 TuShare ts_code
 
         TuShare daily/daily_basic 等接口需要交易所后缀。
-        SH/SZ 直接映射；CN 通过 symbol 前缀判断（6→SH，其余→SZ）。
+        SH/SZ 直接映射。
         """
         if exchange == "SH":
             return f"{symbol}.SH"
         elif exchange == "SZ":
             return f"{symbol}.SZ"
-        elif exchange == "CN":
-            return f"{symbol}.SH" if symbol.startswith("6") else f"{symbol}.SZ"
         return symbol
 
-    def get_current_price(self, symbol: str, exchange: str) -> CurrentPrice:
-        """获取实时行情（降级：返回最近日 K 收盘价）"""
-        close_price, trade_date = self._client.get_latest_price(
-            self._to_ts_code(symbol, exchange)
-        )
+    def _is_fund(self, symbol: str) -> bool:
+        """判断标的在 TuShare 中是否为基金/ETF。
 
-        # 校验：price <= 0 说明 TuShare 数据库中无此标的
+        通过 stock_classifier 初步分类后，用 fund_basic 确认。
+        """
+        result = classify(symbol)
+        if result.type == "fund":
+            # 用 fund_basic 确认（可能需要 exchange，但 classify 已知）
+            ts_code = self._to_ts_code(symbol, result.exchange)
+            fund_info = self._client.get_fund_basic(ts_code)
+            if fund_info:
+                return True
+            # fund_basic 无数据 → fallback 到 stock
+            logger.info(
+                "[tushare] classify=%s but fund_basic empty for %s, fallback to stock",
+                result.type, ts_code,
+            )
+        return False
+
+    def _get_exchange(self, symbol: str, fallback_exchange: str) -> str:
+        """获取分类器推断的交易所，若无则用参数传入的 fallback"""
+        result = classify(symbol)
+        return result.exchange or fallback_exchange
+
+    # ─── 实时行情 ─────────────────────────────────────
+
+    def get_current_price(self, symbol: str, exchange: str) -> CurrentPrice:
+        """获取实时行情（降级：返回最近日 K 或 fund_daily 收盘价）"""
+        ts_code = self._to_ts_code(symbol, exchange)
+        close_price = 0.0
+        trade_date = None
+
+        if self._is_fund(symbol):
+            close_price, trade_date = self._client.get_fund_latest_price(ts_code)
+
+        if close_price <= 0:
+            close_price, trade_date = self._client.get_latest_price(ts_code)
+
+        # 校验
         if close_price <= 0:
             raise RuntimeError(
-                f"TuShare: no price data for {self._to_ts_code(symbol, exchange)}"
+                f"TuShare: no price data for {ts_code}"
             )
 
         # 使用 A 股收盘时间 15:00 CST 作为 price_time
@@ -74,6 +107,8 @@ class TuShareProvider(BaseProvider):
             data_quality="degraded",
         )
 
+    # ─── 日 K 线 ──────────────────────────────────────
+
     def get_daily_kline(
         self,
         symbol: str,
@@ -81,11 +116,18 @@ class TuShareProvider(BaseProvider):
         start_date: date,
         end_date: date,
     ) -> List[DailyKline]:
-        """获取日 K 线数据"""
+        """获取日 K 线数据（自动判断标的类型）"""
+        ts_code = self._to_ts_code(symbol, exchange)
         start_str = start_date.strftime("%Y%m%d")
         end_str = end_date.strftime("%Y%m%d")
 
-        records = self._client.get_daily_kline(self._to_ts_code(symbol, exchange), start_str, end_str)
+        records = []
+        if self._is_fund(symbol):
+            records = self._client.get_fund_daily(ts_code, start_str, end_str)
+
+        if not records:
+            records = self._client.get_daily_kline(ts_code, start_str, end_str)
+
         result: List[DailyKline] = []
         for r in records:
             try:
@@ -111,11 +153,35 @@ class TuShareProvider(BaseProvider):
 
         return result
 
-    def get_fundamentals(self, symbol: str, exchange: str) -> Fundamentals:
-        """获取基本面数据"""
-        today_str = date.today().strftime("%Y%m%d")
+    # ─── 基本面 ───────────────────────────────────────
 
+    def get_fundamentals(self, symbol: str, exchange: str) -> Fundamentals:
+        """获取基本面数据（对基金仅返回名称）"""
         ts_code = self._to_ts_code(symbol, exchange)
+
+        is_fund = self._is_fund(symbol)
+
+        if is_fund:
+            # 基金/ETF：用 fund_basic 获取名称，无 PE/PB
+            fund_info = self._client.get_fund_basic(ts_code)
+            name = (fund_info or {}).get("name", "")
+            if not name:
+                raise RuntimeError(f"TuShare: fund_basic not found for {ts_code}")
+            return Fundamentals(
+                symbol=symbol,
+                exchange=exchange,
+                name=name,
+                sector=None,
+                industry="ETF/基金",
+                market_cap=None,
+                pe_ratio=None,
+                pb_ratio=None,
+                source="tushare",
+                data_date=date.today(),
+            )
+
+        # 股票：原有逻辑
+        today_str = date.today().strftime("%Y%m%d")
         basic = self._client.get_stock_basic(ts_code) or {}
         daily_basic = self._client.get_daily_basic(ts_code, today_str)
 
@@ -123,7 +189,6 @@ class TuShareProvider(BaseProvider):
             yesterday = (date.today() - timedelta(days=1)).strftime("%Y%m%d")
             daily_basic = self._client.get_daily_basic(ts_code, yesterday)
 
-        # 校验：stock_basic 查不到名称说明该标的在 TuShare 数据库中不存在
         name = basic.get("name", "")
         if not name:
             raise RuntimeError(

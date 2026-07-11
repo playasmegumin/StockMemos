@@ -40,25 +40,11 @@
       @close="resetAddForm"
     >
       <t-form :data="addForm" layout="vertical">
-        <t-form-item label="交易所" name="exchange">
-          <t-select
-            v-model="addForm.exchange"
-            :options="exchangeOptions"
-            clearable
-          />
-        </t-form-item>
         <t-form-item label="代码" name="symbol">
-          <t-input v-model="addForm.symbol" placeholder="请输入股票代码" />
+          <t-input v-model="addForm.symbol" placeholder="请输入股票代码（如 518600 / 07709 / DRAM）" />
         </t-form-item>
-        <t-form-item label="名称" name="name">
-          <t-input v-model="addForm.name" placeholder="请输入股票名称" />
-        </t-form-item>
-        <t-form-item label="货币" name="currency">
-          <t-select
-            v-model="addForm.currency"
-            :options="currencyOptions"
-            clearable
-          />
+        <t-form-item label="名称（可选）" name="name">
+          <t-input v-model="addForm.name" placeholder="不填则自动查询" />
         </t-form-item>
       </t-form>
     </t-dialog>
@@ -106,20 +92,7 @@ function retry() {
 // Add Stock Dialog
 const addDialogVisible = ref(false)
 const addLoading = ref(false)
-const addForm = ref({ exchange: 'SH', symbol: '', name: '', currency: 'CNY' })
-
-const exchangeOptions = [
-  { label: '上交所', value: 'SH' },
-  { label: '深交所', value: 'SZ' },
-  { label: '港交所', value: 'HK' },
-  { label: '美股', value: 'US' },
-]
-
-const currencyOptions = [
-  { label: '人民币', value: 'CNY' },
-  { label: '美元', value: 'USD' },
-  { label: '港币', value: 'HKD' },
-]
+const addForm = ref({ symbol: '', name: '' })
 
 async function handleAddStock() {
   addLoading.value = true
@@ -135,7 +108,7 @@ async function handleAddStock() {
 }
 
 function resetAddForm() {
-  addForm.value = { exchange: 'SH', symbol: '', name: '', currency: 'CNY' }
+  addForm.value = { symbol: '', name: '' }
 }
 
 // Delete Stock Dialog

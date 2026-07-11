@@ -11,10 +11,8 @@ export interface Stock {
 }
 
 export interface StockCreate {
-  exchange: string
   symbol: string
-  name: string
-  currency: string
+  name?: string
 }
 
 export interface StockUpdate {

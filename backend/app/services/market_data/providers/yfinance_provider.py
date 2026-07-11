@@ -39,8 +39,15 @@ class YFinanceProvider(BaseProvider):
         logger.info("YFinanceProvider initialized")
 
     def _to_yf_ticker(self, symbol: str, exchange: str) -> str:
-        """将 symbol + exchange 转为 yfinance ticker 格式"""
+        """将 symbol + exchange 转为 yfinance ticker 格式
+
+        港股代码在 yfinance 中需去除前导零（如 07709 → 7709.HK）。
+        """
         suffix = _EXCHANGE_TO_YF_SUFFIX.get(exchange, "")
+        if exchange == "HK":
+            # Strip leading zeros for HK tickers: 07709 → 7709, 00005 → 5
+            clean = symbol.lstrip("0")
+            return f"{clean}{suffix}"
         return f"{symbol}{suffix}"
 
     def _rate_limit(self) -> None:

@@ -7,10 +7,10 @@ from typing import Optional
 
 class StockCreate(BaseModel):
     """创建个股请求"""
-    exchange: str = Field(..., max_length=8, description="交易所类型")
-    symbol: str = Field(..., max_length=20, description="个股标识")
-    name: str = Field(..., max_length=100, description="个股名称")
-    currency: str = Field(..., max_length=10, description="交易货币")
+    symbol: str = Field(..., max_length=20, description="个股代码")
+    name: Optional[str] = Field(None, max_length=100, description="个股名称（可选，不填则自动查询）")
+    exchange: Optional[str] = Field(None, max_length=8, description="交易所（可选，不填则自动推断）")
+    currency: Optional[str] = Field(None, max_length=10, description="交易货币（可选，不填则自动推断）")
 
 
 class StockUpdate(BaseModel):
