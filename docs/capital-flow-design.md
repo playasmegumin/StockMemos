@@ -109,13 +109,65 @@
 | `total_position_value_cny` | decimal(18,4) | `SUM(stock.position × stock.price × rate_to_cny)` |
 | `updated_at` | datetime | |
 
-#### 缓存更新时机
+#### 缓存更新机制
 
-| 触发事件 | 重算字段 | 说明 |
-|---------|---------|------|
-| `capital_flow` 增删 | `total_invested_cny` | 流水变化 → 总投入金额重算 |
-| `Transaction` 增删 | `total_historical_pnl_cny` + `total_position_value_cny` | 交易变化 → 盈亏+持仓重算 |
-| 行情刷新 | `total_position_value_cny` | 价格变化 → 持仓市值重算 |
+采用 **PostgreSQL 数据库触发器** 自动更新，而非 Python 层面手动调用。
+
+**触发器函数 1：`recalc_invested()`**
+- 触发事件：`capital_flow` 表 INSERT / DELETE
+- 动作：重算 `total_invested_cny`
+
+**触发器函数 2：`recalc_pnl_position()`**
+- 触发事件：`stock` 表 UPDATE（position 变化）/ DELETE，`transaction` 表 INSERT / DELETE
+- 动作：重算 `total_historical_pnl_cny` + `total_position_value_cny`
+
+**行情刷新**
+- 由 `POST /api/market/refresh` 在 Python 层面调用：从 `kline_daily` 取最新 `close` 更新 `total_position_value_cny`。
+- 刚添加的股票无 K 线时，`JOIN` 不命中，SUM 中不贡献持仓金额；触发行情刷新后自动补算。
+
+#### 汇率表填充
+
+`exchange_rates` 表在容器构建启动时由后端 seed 脚本写入，写死与前端 `config/exchangeRates.ts` 相同的值（CNY=1, HKD=0.86754, USD=6.8047）。两端同步手动维护。
+
+#### 金额符号约定
+
+用户永远在表单中填正数，后端根据 `type` 转换符号：
+
+| 类型 | 用户填 | 数据库存 |
+|------|--------|---------|
+| `deposit` 存入 | ¥10,000 | `amount = 10000` |
+| `withdraw` 取出 | ¥5,000 | `amount = -5000` |
+| `fee` 手续费 | ¥100 | `amount = -100` |
+
+#### API 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/capital/summary` | 返回 `{ total_invested_cny, total_historical_pnl_cny, total_position_value_cny }`，前端据此算出 4 个 KPI |
+| `GET` | `/api/capital/flows` | 流水记录列表（分页，按 created_at 降序） |
+| `POST` | `/api/capital/flows` | 添加流水（body: `{ type, amount, currency?, note? }`） |
+| `DELETE` | `/api/capital/flows/{id}` | 删除流水 |
+
+**`GET /api/capital/summary` 返回值 → 前端计算 4 个 KPI：**
+
+```javascript
+cash = total_invested_cny + total_historical_pnl_cny           // 可用现金
+total_asset = cash + total_position_value_cny                   // 总资产
+return_rate = total_asset / total_invested_cny                  // 总收益率
+position_ratio = total_position_value_cny / total_asset         // 总仓位
+```
+
+#### 前端页面结构
+
+**持仓总览页（`/`）**
+- 顶部 4 张 KPI 卡片：总资产 / 总收益率 / 总仓位 / 现金
+- Portfolio Treemap（已有）
+- 持仓列表（已有）
+
+**资金管理页（`/capital`）**
+- 顶部 4 张 KPI 卡片：总资产 / 总收益率 / 总仓位 / 现金（与持仓总览相同）
+- 现金流记录表格（按时间降序）
+- 添加记录对话框
 
 #### 全套指标公式（最终定稿）
 
@@ -153,7 +205,7 @@
 
 ```diff
   <t-menu-item value="dashboard">持仓总览</t-menu-item>
-+ <t-menu-item value="capital">资金流水</t-menu-item>
++ <t-menu-item value="capital">资金管理</t-menu-item>
   <t-menu-item value="memos">投资备忘</t-menu-item>
 ```
 
