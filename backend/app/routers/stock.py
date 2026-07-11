@@ -304,14 +304,23 @@ def delete_stock(id: str, db: Session = Depends(get_db)):
 def refresh_stock(id: str, db: Session = Depends(get_db)):
     """重新拉取股票基本数据并更新数据库
 
-    当添加股票时数据源不可用（如 yfinance 限流）导致名称为空，
+    仅保留股票代码，通过分类器重新推断交易所和货币，
+    再从数据源查询正确的股票名称，更新到数据库。
+
+    当添加股票时数据源不可用（如 yfinance 限流）导致信息不准确，
     可用此接口手动触发重新查询并修正。
     """
     item = db.query(Stock).filter(Stock.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="个股不存在")
 
-    # 通过 Provider 重新查询基本信息
+    # 1. 重新分类：用分类器根据代码推断交易所和货币
+    result = classify_stock(item.symbol)
+    if result.exchange:
+        item.exchange = result.exchange
+    item.currency = _EXCHANGE_CURRENCY.get(item.exchange, "USD")
+
+    # 2. 重新查询名称（多源兜底）
     router_p = ProviderRouter()
     name_updated = False
     try:
