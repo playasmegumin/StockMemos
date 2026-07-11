@@ -188,11 +188,24 @@ def create_stock(data: StockCreate, db: Session = Depends(get_db)):
             detail=f"该股票已存在：{exchange}/{data.symbol}"
         )
 
+    # 名称为空时自动查询
+    name = data.name
+    if not name:
+        try:
+            # 复用 lookup 逻辑（通过 Provider 及 TuShare/yfinance 兜底）
+            router_p = ProviderRouter()
+            provider = router_p.get_provider(exchange)
+            fund = provider.get_fundamentals(data.symbol, exchange)
+            if fund and fund.name:
+                name = fund.name
+        except Exception:
+            pass
+
     db_item = Stock(
         id=str(uuid4()),
         exchange=exchange,
         symbol=data.symbol,
-        name=data.name or data.symbol,  # name 为空时 fallback 到代码
+        name=name or data.symbol,  # 仍无名称则 fallback 到代码
         currency=currency,
         position=0,
         historical_pnl=0,
