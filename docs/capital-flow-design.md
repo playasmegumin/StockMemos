@@ -30,103 +30,108 @@
 
 ### 设计决策
 
-#### 存储架构
-
-三张表联合工作：
+#### 分层架构（最终定稿）
 
 ```
-┌─────────────────────┐      ┌──────────────────────────┐
-│   exchange_rates    │      │     capital_flow          │
-├─────────────────────┤      ├──────────────────────────┤
-│  currency     PK    │←─FK──│  currency                  │
-│  rate_to_cny        │      │  type (deposit/withdraw/fee)│
-│  updated_at         │      │  amount (+/-)              │
-└─────────────────────┘      │  note                      │
-                              │  created_at                │
-                              └───────┬──────────────────┘
-                                       │ 增删触发重算
-                                       ▼
-                              ┌──────────────────────────┐
-                              │     capital_meta          │ ← 单行缓存
-                              ├──────────────────────────┤
-                              │  total_invested_cny       │ ← SUM(流水×汇率)
-                              │  total_historical_pnl_cny │ ← SUM(股盈亏×汇率)
-                              │  updated_at               │
-                              └──────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  前端计算层                                                │
+│                                                            │
+│  现金   = 总投入金额 + 历史实际总盈亏                       │
+│  总资产 = 现金 + 总持仓金额                                 │
+│  总收益率 = 总资产 / 总投入金额                             │
+│  总仓位  = 总持仓金额 / 总资产                              │
+└───────────────────────┬────────────────────────────────────┘
+                        │ 读取
+┌───────────────────────▼────────────────────────────────────┐
+│  capital_meta 表（单行缓存）                                │
+│                                                            │
+│  total_invested_cny       ← capital_flow 增删时触发重算     │
+│  total_historical_pnl_cny ← transaction 增删时触发重算      │
+│  total_position_value_cny ← 行情刷新时触发重算              │
+└──────┬──────────────┬──────────────────┬───────────────────┘
+       │              │                  │
+       ▼              ▼                  ▼
+┌──────────┐  ┌──────────────┐  ┌─────────────┐
+│capital   │  │ exchange     │  │ stock表     │
+│_flow     │  │ _rates       │  ├─────────────┤
+│(现金流水)│  │(汇率字典)     │  │historical   │
+│          │  │              │  │_pnl(原币)   │
+│type      │  │CNY=1         │  │position(股数)│
+│amount    │  │HKD=0.86754   │  │price        │
+│currency  │  │USD=6.8047    │  │currency     │
+│note      │  │              │  │             │
+└──────────┘  └──────────────┘  └─────────────┘
 ```
 
-**`exchange_rates` 表：**
+#### 各层职责明细
+
+**① Stock 表（个股数据层）—— 维护个股维度的原币数值**
+
+| 字段 | 维护方式 | 说明 |
+|------|---------|------|
+| `historical_pnl` | `_recalc_stock()` | 交易记录增删时自动重算：`-SUM(quantity × price + gas)` |
+| `position` | `_recalc_stock()` | 交易记录增删时自动重算：`SUM(quantity)` |
+| `price` (最新价) | 行情刷新时更新 | 调用 Provider 获取 |
+| `currency` | 用户添加时设定 | CNY / HKD / USD |
+| `historical_pnl_cny` | 折算后缓存 | `historical_pnl × exchange_rates.rate_to_cny` |
+| `position_value_cny` | 行情刷新时重算 | `position × price × exchange_rates.rate_to_cny` |
+
+- `historical_pnl_cny` 和 `position_value_cny` 是 **可选缓存字段**，不做死。不加也不影响功能，前端实时折算也行。
+
+**② `exchange_rates` 表（汇率字典）**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `currency` | varchar(10) PK | 币种代码：CNY / HKD / USD |
+| `currency` | varchar(10) PK | 币种代码 |
 | `rate_to_cny` | decimal(18,6) | 1 单位本币兑 CNY，CNY=1 |
-| `updated_at` | datetime | 最后更新时间 |
+| `updated_at` | datetime | 更新时间 |
 
-- 数据来源：容器启动时由 seed 脚本写入（与前端 `exchangeRates.ts` 同源维护）
-- 后续扩展：可加 `api_source` 字段支持自动更新
+- 容器启动时由 seed 脚本写入（与前端 exchangeRates.ts 同源维护）
 
-**`capital_flow` 表：**
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | UUID PK | 主键 |
-| `type` | varchar(20) | 操作类型：`deposit`(存入) / `withdraw`(取出) / `fee`(手续费) |
-| `amount` | decimal(18,4) | 金额，**正负号约定**：deposit>0, withdraw<0, fee<0 |
-| `currency` | varchar(10) | 币种，FK → exchange_rates.currency，默认 CNY |
-| `note` | text, nullable | 备注 |
-| `created_at` | datetime | 创建时间 |
-
-**`capital_meta` 表（单行）：**
+**③ `capital_flow` 表（现金流水）**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `id` | int PK, default=1 | 始终为 1，全表仅一行 |
-| `total_invested_cny` | decimal(18,4) | 总投入金额(CNY)：`SUM(capital_flow.amount × rate_to_cny)` |
-| `total_historical_pnl_cny` | decimal(18,4) | 历史总盈亏(CNY)：`SUM(stock.historical_pnl × rate_to_cny)` |
-| `updated_at` | datetime | 最后更新时间 |
+| `id` | UUID PK | |
+| `type` | varchar(20) | `deposit` / `withdraw` / `fee` |
+| `amount` | decimal(18,4) | deposit>0, withdraw<0, fee<0 |
+| `currency` | varchar(10) | FK → exchange_rates.currency，默认 CNY |
+| `note` | text, nullable | |
+| `created_at` | datetime | |
 
-#### 自动更新机制
+**④ `capital_meta` 表（单行缓存）**
 
-**触发点 1：`capital_flow` 增删**
-```sql
--- 重算 total_invested_cny
-UPDATE capital_meta SET
-  total_invested_cny = (
-    SELECT SUM(cf.amount * er.rate_to_cny)
-    FROM capital_flow cf
-    JOIN exchange_rates er ON cf.currency = er.currency
-  ),
-  updated_at = NOW()
-WHERE id = 1;
-```
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int PK, default=1 | 始终为 1 |
+| `total_invested_cny` | decimal(18,4) | `SUM(capital_flow.amount × rate_to_cny)` |
+| `total_historical_pnl_cny` | decimal(18,4) | `SUM(stock.historical_pnl × rate_to_cny)` |
+| `total_position_value_cny` | decimal(18,4) | `SUM(stock.position × stock.price × rate_to_cny)` |
+| `updated_at` | datetime | |
 
-**触发点 2：`Transaction` 增删**
-```sql
--- 重算 total_historical_pnl_cny
-UPDATE capital_meta SET
-  total_historical_pnl_cny = (
-    SELECT SUM(s.historical_pnl * er.rate_to_cny)
-    FROM stock s
-    JOIN exchange_rates er ON s.currency = er.currency
-  ),
-  updated_at = NOW()
-WHERE id = 1;
-```
+#### 缓存更新时机
 
-实现方式：在后端 API 的 `create/delete capital_flow` 和 `_recalc_stock` 中追加重算调用。
+| 触发事件 | 重算字段 | 说明 |
+|---------|---------|------|
+| `capital_flow` 增删 | `total_invested_cny` | 流水变化 → 总投入金额重算 |
+| `Transaction` 增删 | `total_historical_pnl_cny` + `total_position_value_cny` | 交易变化 → 盈亏+持仓重算 |
+| 行情刷新 | `total_position_value_cny` | 价格变化 → 持仓市值重算 |
 
-#### KPI 计算公式（最终确认版）
+#### 全套指标公式（最终定稿）
 
-| 指标 | 公式 | 数据来源 |
-|------|------|---------|
-| **总投入金额** | `capital_meta.total_invested_cny` | 缓存 |
-| **历史总盈亏** | `capital_meta.total_historical_pnl_cny` | 缓存 |
-| **总持仓金额** | `SUM(position × current_price × 汇率)` | 前端计算 |
-| **可用现金** | 总投入金额 + 历史总盈亏 | 前端计算 |
-| **总资产** | 可用现金 + 总持仓金额 | 前端计算 |
-| **总收益率** | 总资产 / 总投入金额 | 前端计算 |
-| **总仓位** | 总持仓金额 / 总资产 | 前端计算 |
+| # | 指标 | 公式 | 计算层 |
+|---|------|------|--------|
+| 1 | 个股历史总盈亏（原币） | `_recalc_stock()`: `-SUM(qty×price+gas)` | Stock 表 |
+| 2 | 个股持仓总金额（原币） | `position × 现价` | Stock 表 / 前端 |
+| 3 | **历史实际总盈亏（CNY）** | `SUM(stock.historical_pnl × rate_to_cny)` | capital_meta 缓存 |
+| 4 | **总投入金额（CNY）** | `SUM(capital_flow.amount × rate_to_cny)` | capital_meta 缓存 |
+| 5 | **总持仓金额（CNY）** | `SUM(stock.position × price × rate_to_cny)` | capital_meta 缓存 |
+| 6 | **现金** | ③ + ④ | **前端** |
+| 7 | **总资产** | ⑥ + ⑤ | **前端** |
+| 8 | **总收益率** | ⑦ / ④ | **前端** |
+| 9 | **总仓位** | ⑤ / ⑦ | **前端** |
+
+> **缓存字段 optional**：`historical_pnl_cny` 和 `position_value_cny` 如果在 Stock 表中维护，capital_meta 的聚合直接 SUM 这些字段，无需 JOIN 汇率表。不加也不影响，只是每次聚合多一次 JOIN 而已。
 
 #### 前端
 | 项目 | 决策 |
