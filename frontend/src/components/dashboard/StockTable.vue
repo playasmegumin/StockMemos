@@ -125,7 +125,8 @@ function onSortChange(val: { sortBy: string; descending: boolean }) {
 const priceMap = ref(new Map<string, CurrentPrice>())
 const priceLoading = ref(new Map<string, boolean>())
 
-watch(() => props.stocks, async (stocks) => {
+watch(() => props.stocks?.length, async () => {
+  const stocks = props.stocks
   if (!stocks || stocks.length === 0) return
   for (const stock of stocks) {
     if (priceMap.value.has(stock.id)) continue
