@@ -1,6 +1,6 @@
 # StockMemos — 项目文档
 
-> **文档版本**: 0.8.0
+> **文档版本**: 0.9.0
 > **文档职责**: 本文件是项目唯一的架构说明书、用户手册和开发需求文档。任何功能变更必须先修改此文档，再修改代码。
 > **文档驱动开发原则**: 后续每次迭代（Milestone / 功能模块）必须遵循「先更新本文档 → 再实现代码 → 再验证文档与代码一致」的流程。
 
@@ -32,7 +32,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Vue 3 Frontend (Vite + TDesign)                 │  ✅ v0.8.0
+│              Vue 3 Frontend (Vite + TDesign)                 │  ✅ v0.9.0
 │  持仓概览 │ 个股详情(分栏布局: K线/交易/报告/止盈止损)       │
 ├─────────────────────────────────────────────────────────────┤
 │              FastAPI Backend                                 │  ✅ 已实现
@@ -494,6 +494,8 @@ LOG_LEVEL=INFO
 - [x] REST API 端点：/price /kline /fundamentals /refresh
 - [x] 前端行情展示 + 刷新按钮（Vue + ECharts）
 - [x] MA5/MA20/MA60 均线 + K 线图
+- [x] ETF/基金数据源支持（TuShare fund_basic/fund_daily + 自动分类路由）
+- [x] 港股前导零处理（yfinance ticker 自动去零：07709 → 7709.HK）
 
 ### Milestone 7: Vue 前端重写 ✅（已完成）
 - [x] Streamlit → Vue 3 + Vite + TypeScript 全量替换
@@ -665,3 +667,5 @@ docker compose build backend  # 重新构建后端
 | 0.7.0 | 2026-07-03 | 全局设计文档对齐实际代码：移除旧模型/API 描述，重写为新模型体系（Stock/Transaction/StockAnalyze/Report/TpSlPoint/StockTag）+ 简化前端结构 + 市场数据配置骨架 | Agent |
 | 0.7.1 | 2026-07-04 | P0/P1 bugfix 版本：修复最新价跨股串号、删除股票 500、基本面首屏不展示、TuShareProvider 空壳穿透 | Agent |
 | 0.8.0 | 2026-07-09 | Streamlit → Vue 3 全量替换：Vite + TypeScript + TDesign Vue Next + Pinia + ECharts + UnoCSS。分栏布局个股详情、Result<T> API 模式、Docker 多阶段构建 | Agent |
+| 0.8.1 | 2026-07-10 | Portfolio treemap 可视化（分层/标签着色/其他聚合）、KPI 卡片重设计、CNY 汇率换算 + 各种 UI bugfix | Agent |
+| **0.9.0** | **2026-07-11** | **股票代码分类器（stock_classifier）：自动推断交易所/品种类型。TuShare ETF 支持（fund_basic/fund_daily）。港股前导零修复。添加对话框简化。重置按钮 + 名称自动补全 + 现价拉取修复。** | **Agent** |
