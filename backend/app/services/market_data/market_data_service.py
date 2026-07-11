@@ -307,6 +307,53 @@ class MarketDataService:
         logger.info("[market] refresh_all complete: %s", stats)
         return stats
 
+    def refresh_single(self, stock_id: str,
+                       days: int = 30) -> Dict[str, int]:
+        """刷新单支股票的日 K + 基本面
+
+        Args:
+            stock_id: 股票 ID
+            days: 拉取最近 N 个交易日的数据（首次建仓默认 30 天）
+
+        Returns:
+            {"klines": int, "fundamentals": int}
+        """
+        stock = self._db.query(Stock).filter(Stock.id == stock_id).first()
+        if not stock:
+            return {"klines": 0, "fundamentals": 0}
+
+        stats = {"klines": 0, "fundamentals": 0}
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        try:
+            provider = self._router.get_provider(stock.exchange)
+
+            klines = provider.get_daily_kline(
+                stock.symbol, stock.exchange, start_date, end_date
+            )
+            if klines:
+                self._upsert_kline_batch(stock.id, klines)
+                stats["klines"] = len(klines)
+
+            fundamentals = provider.get_fundamentals(
+                stock.symbol, stock.exchange
+            )
+            if fundamentals:
+                analyze = self._ensure_analyze(stock.id)
+                analyze.fundamentals_data = fundamentals.model_dump(mode="json")
+                stats["fundamentals"] = 1
+
+            self._db.commit()
+
+        except Exception as e:
+            logger.error(
+                "[market] refresh_single failed for stock %s (%s): %s",
+                stock_id, stock.exchange if stock else "?", e,
+            )
+
+        return stats
+
     def refresh_fundamentals(self) -> Dict[str, int]:
         """仅批量刷新所有股票基本面
 

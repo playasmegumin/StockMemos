@@ -7,6 +7,9 @@ from app.models.report import Report
 from app.models.tp_sl_point import TpSlPoint
 from app.models.stock_tag import StockTag
 from app.models.kline_daily import KlineDaily
+from app.models.exchange_rate import ExchangeRate
+from app.models.capital_flow import CapitalFlow
+from app.models.capital_meta import CapitalMeta
 
 __all__ = [
     "Stock",
@@ -16,4 +19,7 @@ __all__ = [
     "TpSlPoint",
     "StockTag",
     "KlineDaily",
+    "ExchangeRate",
+    "CapitalFlow",
+    "CapitalMeta",
 ]

@@ -21,6 +21,9 @@ from app.models import (  # noqa
     TpSlPoint,
     StockTag,
     KlineDaily,
+    ExchangeRate,
+    CapitalFlow,
+    CapitalMeta,
 )
 
 # this is the Alembic Config object

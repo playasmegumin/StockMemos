@@ -4,6 +4,8 @@
     <div v-if="showEditor" class="mb-4">
       <TransactionEditor
         :stock-id="stockStore.stock!.id"
+        :exchange="stockStore.stock!.exchange"
+        :symbol="stockStore.stock!.symbol"
         :transaction="editingTransaction ?? undefined"
         @saved="handleSaved"
         @cancel="closeEditor"

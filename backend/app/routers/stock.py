@@ -10,15 +10,19 @@ Endpoints:
 
 from typing import List, Optional
 from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.stock import Stock
 from app.schemas.stock import StockCreate, StockUpdate, StockResponse
+from app.services.market_data.market_data_service import MarketDataService
 from app.services.market_data.provider_router import ProviderRouter
 from app.services.tushare_client import TushareClient
-from app.services.market_data.stock_classifier import classify as classify_stock
+from app.services.market_data.stock_classifier import (
+    classify as classify_stock,
+    normalize_symbol as normalize_stock_symbol,
+)
 
 router = APIRouter()
 
@@ -151,12 +155,23 @@ def _to_stock_response(item: Stock) -> StockResponse:
     )
 
 
+# 个股创建后后台预拉 K 线
+def _background_refresh_kline(stock_id: str):
+    try:
+        db = SessionLocal()
+        service = MarketDataService(db)
+        service.refresh_single(stock_id, days=30)
+        db.close()
+    except Exception:
+        pass
+
+
 # ────────────────────────────────
 # 创建个股
 # ────────────────────────────────
 
 @router.post("", response_model=StockResponse, status_code=status.HTTP_201_CREATED)
-def create_stock(data: StockCreate, db: Session = Depends(get_db)):
+def create_stock(data: StockCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """录入新个股（只需 symbol，exchange 和 currency 自动推断）
 
     设计决策（2026-07-10）：
@@ -178,14 +193,17 @@ def create_stock(data: StockCreate, db: Session = Depends(get_db)):
             detail=f"无法推断交易所: {data.symbol}",
         )
 
+    # 规范化股票代码（HK 补零到 5 位，防止 01810/1810 重复）
+    normalized_symbol = normalize_stock_symbol(exchange, data.symbol)
+
     existing = db.query(Stock).filter(
         Stock.exchange == exchange,
-        Stock.symbol == data.symbol
+        Stock.symbol == normalized_symbol
     ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"该股票已存在：{exchange}/{data.symbol}"
+            detail=f"该股票已存在：{exchange}/{normalized_symbol}"
         )
 
     # 名称为空时自动查询
@@ -204,7 +222,7 @@ def create_stock(data: StockCreate, db: Session = Depends(get_db)):
     db_item = Stock(
         id=str(uuid4()),
         exchange=exchange,
-        symbol=data.symbol,
+        symbol=normalized_symbol,
         name=name or data.symbol,  # 仍无名称则 fallback 到代码
         currency=currency,
         position=0,
@@ -213,6 +231,7 @@ def create_stock(data: StockCreate, db: Session = Depends(get_db)):
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
+    background_tasks.add_task(_background_refresh_kline, db_item.id)
     return _to_stock_response(db_item)
 
 

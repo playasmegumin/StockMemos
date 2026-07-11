@@ -7,11 +7,15 @@
       <template #icon><t-icon name="chart-bar" /></template>
       持仓总览
     </t-menu-item>
-    <t-menu-item value="agent" disabled>
-      <template #icon><t-icon name="robot" /></template>
-      Agent 分析
+    <t-menu-item value="capital" @click="go('/capital')">
+      <template #icon><t-icon name="money" /></template>
+      资金管理
     </t-menu-item>
-    <t-menu-item value="settings" disabled>
+    <t-menu-item value="memos" disabled>
+      <template #icon><t-icon name="file" /></template>
+      投资备忘
+    </t-menu-item>
+    <t-menu-item value="settings" @click="go('/settings')">
       <template #icon><t-icon name="setting" /></template>
       设置
     </t-menu-item>
@@ -27,6 +31,8 @@ const router = useRouter()
 
 const activeKey = computed(() => {
   if (route.path === '/') return 'dashboard'
+  if (route.path.startsWith('/capital')) return 'capital'
+  if (route.path.startsWith('/settings')) return 'settings'
   return 'dashboard'
 })
 

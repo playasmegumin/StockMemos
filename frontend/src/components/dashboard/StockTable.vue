@@ -34,6 +34,23 @@ const emit = defineEmits<{
 
 const router = useRouter()
 
+// Helper: get current price for a stock (returns 0 if not loaded yet)
+function getStockPrice(stock: Stock): number {
+  const p = priceMap.value.get(stock.id)
+  return p?.price ?? 0
+}
+
+// Helper: position value in stock's own currency
+function positionValue(stock: Stock): number {
+  return stock.position * getStockPrice(stock)
+}
+
+// Helper: floating PnL = position value + historical_pnl
+// (historical_pnl is negative for bought stocks, so adding gives floating PnL)
+function floatingPnl(stock: Stock): number {
+  return positionValue(stock) + (stock.historical_pnl ?? 0)
+}
+
 // Sorting
 const sortState = ref<{ sortBy: string; descending: boolean }>({ sortBy: '', descending: false })
 
@@ -57,12 +74,23 @@ const columns = computed(() => [
     cell: (_h: any, { row }: Record<string, any>) => row ? fmtAmount(row.position) : '',
   },
   {
-    colKey: 'historical_pnl', title: '盈亏', width: 140, sortable: true,
+    colKey: 'position_value', title: '个股持仓总金额', width: 160, sortable: true,
     cell: (_h: any, { row }: Record<string, any>) => {
       if (!row) return ''
-      const { text, cls } = fmtPnl(row.historical_pnl)
-      const color = cls.includes('red') ? '#e74c3c' : '#27ae60'
-      return h('span', { style: `color:${color};font-weight:600` }, text)
+      const p = priceMap.value.get(row.id)
+      if (!p) return '--'
+      return fmtAmount(positionValue(row))
+    },
+  },
+  {
+    colKey: 'floating_pnl', title: '浮动盈亏', width: 140, sortable: true,
+    cell: (_h: any, { row }: Record<string, any>) => {
+      if (!row) return ''
+      const p = priceMap.value.get(row.id)
+      if (!p) return '--'
+      const fp = floatingPnl(row)
+      const color = fp >= 0 ? '#e74c3c' : '#27ae60'
+      return h('span', { style: `color:${color};font-weight:600` }, fmtPnl(fp).text)
     },
   },
   {
@@ -108,11 +136,21 @@ const columns = computed(() => [
 const sortedStocks = computed(() => {
   if (!sortState.value.sortBy) return props.stocks
   const arr = [...props.stocks]
-  const key = sortState.value.sortBy as keyof Stock
+  const key = sortState.value.sortBy
+  const descending = sortState.value.descending
   arr.sort((a, b) => {
-    const aVal = Number(a[key]) || 0
-    const bVal = Number(b[key]) || 0
-    return sortState.value.descending ? bVal - aVal : aVal - bVal
+    let aVal: number, bVal: number
+    if (key === 'floating_pnl') {
+      aVal = floatingPnl(a)
+      bVal = floatingPnl(b)
+    } else if (key === 'position_value') {
+      aVal = positionValue(a)
+      bVal = positionValue(b)
+    } else {
+      aVal = Number(a[key as keyof Stock]) || 0
+      bVal = Number(b[key as keyof Stock]) || 0
+    }
+    return descending ? bVal - aVal : aVal - bVal
   })
   return arr
 })

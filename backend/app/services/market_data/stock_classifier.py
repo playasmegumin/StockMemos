@@ -78,6 +78,20 @@ def classify(symbol: str) -> StockClassifyResult:
     return _classify_code(code)
 
 
+def normalize_symbol(exchange: str, symbol: str) -> str:
+    """将个股代码转化为规范化形式。
+
+    规则：
+        HK 交易所 → 纯数字补零到 5 位（01810 → 01810，1810 → 01810）
+        其他交易所 → 保持原始输入
+    """
+    if exchange == "HK":
+        code, _ = _strip_suffix(symbol)
+        if code.isdigit():
+            return code.zfill(5)
+    return symbol
+
+
 def _strip_suffix(raw: str) -> tuple[str, Optional[str]]:
     """剥离已知交易所后缀 (.SH .SZ .HK .US)，大小写不敏感。
 

@@ -30,9 +30,9 @@
         <label class="text-xs text-gray-500 block mb-1">数量</label>
         <t-input-number
           v-model="form.quantity"
-          :min="1"
+          :min="0"
           :max="999999999"
-          :step="100"
+          :step="stepUnit"
           style="width: 100%"
         />
       </div>
@@ -40,10 +40,12 @@
       <!-- Price -->
       <div>
         <label class="text-xs text-gray-500 block mb-1">价格</label>
-        <t-input-number
-          v-model="form.price"
-          :min="0.001"
+        <t-input
+          v-model="priceInput"
+          type="number"
+          :min="0"
           :decimal-places="3"
+          placeholder="自动获取中..."
           style="width: 100%"
         />
       </div>
@@ -70,9 +72,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { createTransaction, updateTransaction } from '@/api/transactions'
+import { getPrice, getKline } from '@/api/market'
+import { getTransactionsByStock } from '@/api/transactions'
 import { MessagePlugin } from 'tdesign-vue-next'
+import { getDefaultGas } from '@/utils/commission'
 import type { Transaction } from '@/types/transaction'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
@@ -81,6 +86,8 @@ dayjs.extend(utc)
 const props = defineProps<{
   transaction?: Transaction
   stockId: string
+  exchange?: string
+  symbol?: string
 }>()
 
 const emit = defineEmits<{
@@ -90,26 +97,82 @@ const emit = defineEmits<{
 
 const isEditing = !!props.transaction
 const submitting = ref(false)
+const priceInput = ref<string>('')
+
+// 按交易所确定单步增减单位：A股/港股 100 股/手，美股 1 股
+const stepUnit = computed(() => {
+  if (props.exchange === 'US') return 1
+  return 100
+})
+
+// 新交易时数量预设为单步步长
+const defaultQuantity = computed(() => {
+  if (props.transaction) return Math.abs(props.transaction.quantity)
+  return stepUnit.value
+})
 
 const form = reactive({
   traded_at: props.transaction?.traded_at
     ? dayjs.utc(props.transaction.traded_at).format('YYYY-MM-DD')
     : dayjs().format('YYYY-MM-DD'),
   direction: props.transaction && props.transaction.quantity < 0 ? 'sell' as const : 'buy' as const,
-  quantity: props.transaction ? Math.abs(props.transaction.quantity) : 100,
+  quantity: defaultQuantity.value,
   price: props.transaction?.price ?? 0,
-  gas: props.transaction?.gas ?? 0,
+  gas: props.transaction?.gas ?? getDefaultGas(props.exchange || '', props.symbol || ''),
 })
 
+// 编辑已有交易时，把 price 回填到价格输入框
+if (props.transaction?.price) {
+  priceInput.value = String(props.transaction.price)
+}
+
+async function fetchDefaultPrice() {
+  if (isEditing && props.transaction?.price) return
+
+  // Tier 1: Current price
+  const priceR = await getPrice(props.stockId)
+  if (priceR.ok && priceR.data.price > 0) {
+    form.price = priceR.data.price
+    priceInput.value = String(priceR.data.price)
+    return
+  }
+
+  // Tier 2: Last kline close
+  const klineR = await getKline(props.stockId)
+  if (klineR.ok && klineR.data.length > 0) {
+    const close = klineR.data[klineR.data.length - 1].close
+    form.price = close
+    priceInput.value = String(close)
+    return
+  }
+
+  // Tier 3: Weighted average buy price
+  const txnR = await getTransactionsByStock(props.stockId)
+  if (txnR.ok && txnR.data.length > 0) {
+    const buys = txnR.data.filter(t => t.quantity > 0)
+    if (buys.length > 0) {
+      const totalQty = buys.reduce((s, t) => s + t.quantity, 0)
+      const totalCost = buys.reduce((s, t) => s + t.quantity * t.price, 0)
+      form.price = totalCost / totalQty
+      priceInput.value = String(form.price)
+      return
+    }
+  }
+}
+
 async function handleSubmit() {
-  if (!form.quantity || form.quantity <= 0) {
+  if (form.quantity <= 0) {
     MessagePlugin.warning('请输入有效的数量')
     return
   }
-  if (!form.price || form.price <= 0) {
+
+  // 从价格输入框取值
+  const parsedPrice = parseFloat(priceInput.value)
+  if (isNaN(parsedPrice) || parsedPrice <= 0) {
     MessagePlugin.warning('请输入有效的价格')
     return
   }
+  form.price = parsedPrice
 
   submitting.value = true
 
@@ -146,4 +209,10 @@ async function handleSubmit() {
 
   submitting.value = false
 }
+
+onMounted(() => {
+  if (!isEditing) {
+    fetchDefaultPrice()
+  }
+})
 </script>

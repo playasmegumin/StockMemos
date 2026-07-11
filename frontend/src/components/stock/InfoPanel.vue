@@ -69,22 +69,58 @@
         size="small"
       />
     </div>
+
+    <t-divider />
+
+    <!-- Data info -->
+    <div>
+      <div class="text-sm font-semibold text-gray-600 mb-2">数据</div>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <span class="text-gray-500">数据源</span>
+          <span class="font-mono">{{ dataSourceLabel }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">添加日期</span>
+          <span class="font-mono">{{ fmtDate(stock?.created_at) }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">交易次数</span>
+          <span class="font-mono">{{ txCount }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">已缓存K线</span>
+          <span class="font-mono">{{ klineCount }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useStockStore } from '@/stores/stock'
-import { getPrice } from '@/api/market'
-import { fmtPrice, fmtPnl, fmtDecimal, fmtPercent, fmtAmount } from '@/utils/format'
+import { useKlineStore } from '@/stores/kline'
+import { getPrice, getKline } from '@/api/market'
+import { getTransactionsByStock } from '@/api/transactions'
+import { fmtPrice, fmtPnl, fmtDecimal, fmtPercent, fmtAmount, fmtDate } from '@/utils/format'
 import type { CurrentPrice } from '@/types/market'
 
 const stockStore = useStockStore()
+const klineStore = useKlineStore()
 
 const stock = computed(() => stockStore.stock)
 const newTag = ref('')
 const currentPriceData = ref<CurrentPrice | null>(null)
 const currentPrice = computed(() => currentPriceData.value?.price ?? null)
+const txCount = ref(0)
+const klineCount = computed(() => klineStore.klineData.length)
+
+const dataSourceLabel = computed(() => {
+  if (!stock.value) return '--'
+  if (stock.value.exchange === 'SH' || stock.value.exchange === 'SZ') return 'TuShare'
+  return 'YFinance'
+})
 
 const pnlResult = computed(() => {
   if (!stock.value) return null
@@ -129,9 +165,15 @@ function handleRemoveTag(tagId: string) {
 
 onMounted(async () => {
   if (!stock.value) return
-  const r = await getPrice(stock.value.id)
-  if (r.ok) {
-    currentPriceData.value = r.data
+  const [priceR, txnR] = await Promise.all([
+    getPrice(stock.value.id),
+    getTransactionsByStock(stock.value.id),
+  ])
+  if (priceR.ok) {
+    currentPriceData.value = priceR.data
+  }
+  if (txnR.ok && txnR.data) {
+    txCount.value = txnR.data.length
   }
 })
 </script>

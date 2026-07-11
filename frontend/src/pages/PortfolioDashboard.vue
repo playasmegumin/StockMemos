@@ -22,7 +22,11 @@
     </t-alert>
 
     <!-- Content -->
-    <KpiCards :stocks="store.stocks" :total-position-cny="totalPositionCny" />
+    <KpiCards
+      :total-invested-cny="capitalSummary.total_invested_cny"
+      :total-historical-pnl-cny="capitalSummary.total_historical_pnl_cny"
+      :total-position-value-cny="capitalSummary.total_position_value_cny"
+    />
     <PortfolioTreemap :stocks="store.stocks" />
     <StockTable
       :stocks="store.stocks"
@@ -63,16 +67,21 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolio'
 import { MessagePlugin } from 'tdesign-vue-next'
-import { computeAllPositionValues } from '@/utils/positionValue'
+import { getCapitalSummary } from '@/api/capital'
+import type { CapitalSummary } from '@/api/capital'
 import KpiCards from '@/components/dashboard/KpiCards.vue'
 import PortfolioTreemap from '@/components/dashboard/PortfolioTreemap.vue'
 import StockTable from '@/components/dashboard/StockTable.vue'
 
 const store = usePortfolioStore()
-const totalPositionCny = ref(0)
+const capitalSummary = reactive<CapitalSummary>({
+  total_invested_cny: 0,
+  total_historical_pnl_cny: 0,
+  total_position_value_cny: 0,
+})
 
 // Refresh
 const refreshing = ref(false)
@@ -147,15 +156,14 @@ async function handleRefreshStock(id: string) {
   }
 }
 
-// First load — only fetch stocks list, do NOT auto-refresh market data (too slow)
+// First load — fetch stocks list + capital summary
 onMounted(async () => {
   await store.fetchAll()
-  // Compute total position value in CNY (SUM of rate × price × position)
-  const pv = await computeAllPositionValues(store.stocks)
-  let total = 0
-  for (const v of pv.values()) {
-    total += v.value
+  const r = await getCapitalSummary()
+  if (r.ok && r.data) {
+    capitalSummary.total_invested_cny = r.data.total_invested_cny
+    capitalSummary.total_historical_pnl_cny = r.data.total_historical_pnl_cny
+    capitalSummary.total_position_value_cny = r.data.total_position_value_cny
   }
-  totalPositionCny.value = total
 })
 </script>

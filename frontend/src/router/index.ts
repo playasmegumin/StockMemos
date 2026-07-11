@@ -13,6 +13,16 @@ const router = createRouter({
       name: 'stock-detail',
       component: () => import('@/pages/StockDetail.vue'),
     },
+    {
+      path: '/capital',
+      name: 'capital',
+      component: () => import('@/pages/CapitalManage.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/pages/Settings.vue'),
+    },
   ],
 })
 
