@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.logging_config import setup_logging
-from app.routers import health, stock, transaction, stock_analyze, market_data, capital
+from app.routers import health, stock, transaction, stock_analyze, market_data, capital, memos
 
 # 初始化日志配置
 setup_logging()
@@ -74,6 +74,7 @@ app.include_router(transaction.router, prefix="/api/transactions", tags=["transa
 app.include_router(stock_analyze.router, prefix="/api/stock-analyze", tags=["stock-analyze"])
 app.include_router(market_data.router, prefix="/api", tags=["market-data"])
 app.include_router(capital.router, prefix="/api/capital", tags=["capital"])
+app.include_router(memos.router, prefix="/api/memos", tags=["memos"])
 
 # ── 提供测试页面（/test 路径，仅 Docker 环境存在）──
 import os as _os

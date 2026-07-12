@@ -40,6 +40,9 @@
           <t-tab-panel value="tpsl" label="止盈止损">
             <TpSlManager />
           </t-tab-panel>
+          <t-tab-panel value="memos" label="投资备忘">
+            <StockMemosTab :stock-id="stockStore.stock.id" />
+          </t-tab-panel>
         </t-tabs>
       </div>
     </div>
@@ -74,6 +77,7 @@ import KlineChart from '@/components/chart/KlineChart.vue'
 import TransactionList from '@/components/stock/TransactionList.vue'
 import ReportList from '@/components/stock/ReportList.vue'
 import TpSlManager from '@/components/stock/TpSlManager.vue'
+import StockMemosTab from '@/components/detail/StockMemosTab.vue'
 
 const route = useRoute()
 const router = useRouter()

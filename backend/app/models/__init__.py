@@ -10,6 +10,7 @@ from app.models.kline_daily import KlineDaily
 from app.models.exchange_rate import ExchangeRate
 from app.models.capital_flow import CapitalFlow
 from app.models.capital_meta import CapitalMeta
+from app.models.investment_memo import InvestmentMemo
 
 __all__ = [
     "Stock",
@@ -22,4 +23,5 @@ __all__ = [
     "ExchangeRate",
     "CapitalFlow",
     "CapitalMeta",
+    "InvestmentMemo",
 ]

@@ -18,7 +18,8 @@
 ```
 Vue 3 Frontend（Vite + TDesign + ECharts）
   ├── 持仓概览（KPI 卡片 + 可排序表格 + 现价）
-  ├── 个股详情（分栏布局：信息面板 / K线图 / 交易/报告/止盈止损）
+  ├── 个股详情（分栏布局：信息面板 / K线图 / 交易/报告/止盈止损/备忘）
+  ├── 投资备忘（独立页面 + 关联个股跳转）
   └── 交互式 K 线图（MA5/20/60 + 缩放 + 成交量）
           │
           ▼  REST API (port 8080)
@@ -90,7 +91,7 @@ stockmemos/
     ├── src/
     │   ├── main.ts / App.vue
     │   ├── router/ / stores/ / api/ / types/
-    │   ├── pages/              # PortfolioDashboard + StockDetail
+    │   ├── pages/              # PortfolioDashboard + StockDetail + CapitalManage + Settings + MemosPage
     │   ├── components/         # KpiCards, StockTable, InfoPanel,
     │   │                       # KlineChart, TransactionList, etc.
     │   └── utils/

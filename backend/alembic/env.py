@@ -24,6 +24,7 @@ from app.models import (  # noqa
     ExchangeRate,
     CapitalFlow,
     CapitalMeta,
+    InvestmentMemo,
 )
 
 # this is the Alembic Config object

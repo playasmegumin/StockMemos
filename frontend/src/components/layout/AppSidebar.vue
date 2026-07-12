@@ -11,7 +11,7 @@
       <template #icon><t-icon name="money" /></template>
       资金管理
     </t-menu-item>
-    <t-menu-item value="memos" disabled>
+    <t-menu-item value="memos" @click="go('/memos')">
       <template #icon><t-icon name="file" /></template>
       投资备忘
     </t-menu-item>
@@ -32,6 +32,7 @@ const router = useRouter()
 const activeKey = computed(() => {
   if (route.path === '/') return 'dashboard'
   if (route.path.startsWith('/capital')) return 'capital'
+  if (route.path.startsWith('/memos')) return 'memos'
   if (route.path.startsWith('/settings')) return 'settings'
   return 'dashboard'
 })

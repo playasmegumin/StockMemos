@@ -23,6 +23,11 @@ const router = createRouter({
       name: 'settings',
       component: () => import('@/pages/Settings.vue'),
     },
+    {
+      path: '/memos',
+      name: 'memos',
+      component: () => import('@/pages/MemosPage.vue'),
+    },
   ],
 })
 
