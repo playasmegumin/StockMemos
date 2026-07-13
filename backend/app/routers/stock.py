@@ -345,7 +345,7 @@ def refresh_stock(id: str, db: Session = Depends(get_db)):
     try:
         provider = router_p.get_provider(item.exchange)
         fund = provider.get_fundamentals(item.symbol, item.exchange)
-        if fund and fund.name:
+        if fund and fund.name and fund.name != item.symbol:
             item.name = fund.name
             name_updated = True
     except Exception:

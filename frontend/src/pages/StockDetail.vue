@@ -25,11 +25,11 @@
     </div>
 
     <!-- Right side -->
-    <div class="stock-detail-right grid grid-rows-[1fr_auto] gap-4 overflow-hidden min-h-0">
-      <div class="bg-white rounded-lg shadow-sm p-4 overflow-hidden min-h-0">
+    <div class="stock-detail-right grid grid-rows-[auto_1fr] gap-4 overflow-hidden min-h-0">
+      <div class="bg-white rounded-lg shadow-sm p-4">
         <KlineChart />
       </div>
-      <div class="bg-white rounded-lg shadow-sm p-4">
+      <div class="bg-white rounded-lg shadow-sm p-4 overflow-y-auto min-h-0">
         <t-tabs default-value="transactions" size="medium">
           <t-tab-panel value="transactions" label="交易记录">
             <TransactionList />
@@ -131,7 +131,7 @@ onUnmounted(() => {
 /* Right side inner grid */
 .stock-detail-right {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr;
   gap: 1rem;
   overflow: hidden;
   min-height: 0;

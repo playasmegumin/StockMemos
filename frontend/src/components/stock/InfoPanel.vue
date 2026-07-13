@@ -1,10 +1,10 @@
 <template>
   <div class="info-panel bg-white rounded-lg shadow-sm p-4 space-y-5">
-    <!-- Stock code/name header -->
+    <!-- Stock name/code header -->
     <div>
-      <div class="text-3xl font-mono font-bold text-gray-800">{{ stock?.symbol }}</div>
+      <div class="text-3xl font-bold text-gray-800">{{ stock?.name || stock?.symbol }}</div>
       <div class="text-sm text-gray-500 mt-1">
-        {{ stock?.exchange }} · {{ stock?.name }}
+        {{ stock?.exchange }} · {{ stock?.symbol }}
       </div>
     </div>
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="kline-chart relative" style="height: 400px">
+  <div class="kline-chart relative" style="height: 340px">
     <!-- Empty state -->
     <t-empty
       v-if="!klineStore.klineData.length && !klineStore.loading"
@@ -241,19 +241,8 @@ const option = computed(() => {
       {
         type: 'inside',
         xAxisIndex: [0, 1],
-        start: 50,
+        start: 0,
         end: 100,
-      },
-      {
-        type: 'slider',
-        xAxisIndex: [0, 1],
-        start: 50,
-        end: 100,
-        bottom: 0,
-        height: 16,
-        borderColor: '#ddd',
-        fillerColor: 'rgba(66,165,245,0.15)',
-        handleStyle: { borderColor: '#42a5f5' },
       },
     ],
 
