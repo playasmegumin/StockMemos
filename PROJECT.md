@@ -1,6 +1,6 @@
 # StockMemos — 项目文档
 
-> **文档版本**: 0.13.0
+> **文档版本**: 0.14.0
 > **文档职责**: 本文件是项目唯一的架构说明书、用户手册和开发需求文档。任何功能变更必须先修改此文档，再修改代码。
 > **文档驱动开发原则**: 后续每次迭代（Milestone / 功能模块）必须遵循「先更新本文档 → 再实现代码 → 再验证文档与代码一致」的流程。
 
@@ -534,10 +534,13 @@ LOG_LEVEL=INFO
 - [ ] 个股详情「返回列表」改为返回 `/stocks`
 - [ ] 侧边栏更新：持仓总览 / 个股列表 / 资金管理 / 投资备忘 / 设置
 
-### Milestone 9: 数据备份系统 📅（规划中）
-- [ ] JSON 导出（Stock exchange+symbol / Transaction / TpSlPoint / StockTag）
-- [ ] JSON 导入（同范围）
-- [ ] 清空全部数据（删除所有股票，级联清空）
+### Milestone 9: 数据备份系统 ✅（已完成）
+- [x] 后端 API：POST /api/backup/export（StreamingResponse 输出 ZIP）+ POST /api/backup/import（multipart 上传）
+- [x] CLI 脚本：python -m scripts.backup export/import（复用后端 ORM）
+- [x] 前端：设置页备份模块（复选框 + 导出/导入按钮 + 结果展示 + 数据自动刷新）
+- [x] 导出/导入格式：ZIP（含 stocks.json / transactions.json / memos.json / capital_flows.json / kline/*.csv）
+- [x] 导入去重：transactions 内存 + DB 双层去重，kline UPSERT by stock_id + date
+- [x] 导入后自动重算：Stock.position/historical_pnl + capital_meta 触发器
 
 ### Milestone 10: 平台可用性监测 ✅（已完成）
 
@@ -605,17 +608,23 @@ LOG_LEVEL=INFO
 
 ### 11.3 数据备份系统
 
-- 导出格式：JSON
-- 导出/导入范围：
-  - ✅ Stock（仅 exchange + symbol）
-  - ✅ Transaction
-  - ✅ TpSlPoint
-  - ✅ StockTag
-  - ❌ 基本面（实时拉取，不备份）
-  - ❌ K 线数据（实时拉取，不备份）
-  - ❌ 分析报告
-- 清空操作：删除所有股票，级联清空全部关联数据
-- 清空后用户手动刷新重新拉取行情
+- 触发方式：设置页「数据备份」模块（复选框选择内容 + 导出/导入按钮）
+- 导出格式：ZIP（`stockmemos_export_YYYYMMDD.zip`）
+- 压缩包结构：
+  - `stocks.json` — 个股列表（exchange + symbol + name + tags）
+  - `transactions.json` — 交易记录
+  - `memos.json` — 投资备忘
+  - `capital_flows.json` — 现金流记录
+  - `kline/{symbol}_{exchange}.csv` — K 线数据（可选）
+- CLI 脚本：`docker compose exec backend python -m scripts.backup export --types stocks,transactions --output /backup.zip`
+- 导入规则：
+  - Stocks：exchange+symbol 已存在则跳过，不存在则创建
+  - Transactions：Stock 存在且非重复则创建，否则跳过（内存 + DB 双层去重）
+  - Memos：title+created_at 判重，Stock 存在则关联
+  - Kline：stock_id+date UPSERT
+  - Capital flows：直接创建（无判重）
+- 导入后自动：刷新 Stock.position/historical_pnl、刷新前端 Pinia stores
+- 不包含：基本面（实时拉取）、分析报告
 
 ### 11.4 平台可用性监测
 
@@ -734,5 +743,6 @@ docker compose build backend  # 重新构建后端
 | **0.10.0** | **2026-07-12** | **资金管理 + KPI 重构：capital_flow 流水表、capital_meta 聚合表、汇率配置（settings 页面）、8 卡 KPI 指标面板（总资产/总收益率/总仓位/现金等）、DB trigger 自动重算。** | **Agent** |
 | 0.12.0 | 2026-07-13 | 平台可用性监测：诊断 API（8 项串行检测 + scope 参数）、设置页只读汇率 + 双区面板（数据源/大模型）、localStorage 持久化 + VERSION 文件 | Agent |
 | 0.12.1 | 2026-07-13 | 文档更新：新增 2.5 数据源 Provider 能力抽象接口（未来规划）、约束 10、AKShareProvider 完成度现状记录 | Agent |
+| **0.14.0** | **2026-07-14** | **数据备份系统：POST /api/backup/export 导出 ZIP（StreamingResponse）、POST /api/backup/import 导入（内存+DB 双层去重 + Stock position/pnl 自动重算）、CLI 脚本（argparse）、前端设置页备份模块（复选框+导出/导入+自动刷新）。Milestone 9 完成。** | **Agent** |
 | **0.13.0** | **2026-07-13** | **平台可用性监测 + AKShare 数据源扩展 + K 线布局优化：诊断 API/面板、只读汇率、AKShare 港美股支持、Provider 能力抽象、VERSION 文件、K 线图容器自适应。Milestone 10 完成。** | **Agent** |
 
