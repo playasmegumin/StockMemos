@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "exported_at": "2026-07-14T02:20:57Z",
+  "capital_flows": [
+    {
+      "type": "deposit",
+      "amount": 50000.0,
+      "currency": "CNY",
+      "note": null,
+      "created_at": "2026-07-11T15:05:27.167659"
+    },
+    {
+      "type": "fee",
+      "amount": -200.0,
+      "currency": "CNY",
+      "note": null,
+      "created_at": "2026-07-11T15:12:22.283190"
+    },
+    {
+      "type": "withdraw",
+      "amount": -20000.0,
+      "currency": "CNY",
+      "note": null,
+      "created_at": "2026-07-11T15:33:50.297083"
+    }
+  ]
+}
