@@ -1,6 +1,5 @@
 <template>
   <div class="h-full">
-    <!-- Header -->
     <div class="flex justify-between items-center mb-4 flex-shrink-0">
       <h2 class="text-xl font-bold">资金管理</h2>
       <t-button variant="outline" @click="handleRefresh">

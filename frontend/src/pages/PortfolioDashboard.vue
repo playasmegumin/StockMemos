@@ -1,6 +1,5 @@
 <template>
   <div>
-// Header
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-xl font-bold">持仓总览</h2>
       <t-button :loading="refreshing" @click="handleRefresh">

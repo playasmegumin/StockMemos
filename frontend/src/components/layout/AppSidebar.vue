@@ -1,5 +1,5 @@
 <template>
-  <t-menu :value="activeKey" theme="light" style="height: 100%; border-right: 1px solid var(--td-component-stroke);">
+  <t-menu :value="activeKey" theme="light" style="height: 100%;">
     <template #logo>
       <div class="px-4 py-4 text-lg font-bold text-gray-800">StockMemos</div>
     </template>

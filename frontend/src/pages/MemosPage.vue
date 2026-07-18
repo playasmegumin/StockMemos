@@ -1,6 +1,5 @@
 <template>
   <div class="memos-page p-6 max-w-3xl mx-auto">
-    <!-- ═══ Header ═══ -->
     <h1 class="text-2xl font-bold mb-6">投资备忘</h1>
 
     <!-- ═══ Editor Area (New / Edit) ═══ -->

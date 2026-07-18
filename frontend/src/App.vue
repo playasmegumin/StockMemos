@@ -1,7 +1,7 @@
 <template>
-  <div class="app-layout grid grid-cols-[220px_1fr] h-screen">
+  <div class="app-layout grid grid-cols-[220px_1fr] gap-x-4 h-screen">
     <AppSidebar />
-    <main class="overflow-auto p-6 h-full min-h-0">
+    <main class="overflow-auto p-6 h-full min-h-0 box-border">
       <router-view />
     </main>
   </div>

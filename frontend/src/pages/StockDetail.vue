@@ -1,6 +1,5 @@
 <template>
   <div v-if="stockStore.stock" class="stock-detail grid grid-cols-[300px_1fr] grid-rows-[auto_1fr] gap-4 h-full">
-    <!-- Header -->
     <div class="col-span-2 row-span-1 flex items-center gap-4 p-4 bg-white rounded-lg shadow-sm">
       <t-link theme="primary" @click="router.push('/')">← 返回列表</t-link>
       <div class="text-xl font-bold">
