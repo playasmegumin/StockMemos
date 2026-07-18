@@ -11,6 +11,7 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.capital_flow import CapitalFlow
 from app.models.capital_meta import CapitalMeta
 from app.models.investment_memo import InvestmentMemo
+from app.models.historical_adjustment import HistoricalAdjustment
 
 __all__ = [
     "Stock",
@@ -24,4 +25,5 @@ __all__ = [
     "CapitalFlow",
     "CapitalMeta",
     "InvestmentMemo",
+    "HistoricalAdjustment",
 ]

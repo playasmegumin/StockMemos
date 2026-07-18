@@ -81,6 +81,7 @@ const capitalSummary = reactive<CapitalSummary>({
   total_invested_cny: 0,
   total_historical_pnl_cny: 0,
   total_position_value_cny: 0,
+  total_adjustment_cny: 0,
 })
 
 // Refresh

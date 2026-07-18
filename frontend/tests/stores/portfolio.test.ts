@@ -41,7 +41,7 @@ describe('portfolio store', () => {
   it('addStock appends stock on success', async () => {
     vi.mocked(stocksApi.createStock).mockResolvedValue({ ok: true, data: mockStock })
     const store = usePortfolioStore()
-    await store.addStock({ exchange: 'SH', symbol: '600519', name: '茅台', currency: 'CNY' })
+    await store.addStock({ symbol: '600519', name: '茅台' })
     expect(store.stocks).toHaveLength(1)
   })
 

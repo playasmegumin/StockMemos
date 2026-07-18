@@ -11,11 +11,13 @@ from typing import List, Optional
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.models.capital_flow import CapitalFlow
 from app.models.capital_meta import CapitalMeta
 from app.models.exchange_rate import ExchangeRate
+from app.models.historical_adjustment import HistoricalAdjustment
 from app.schemas.capital import (
     CapitalFlowCreate,
     CapitalFlowResponse,
@@ -32,12 +34,16 @@ router = APIRouter()
 def get_capital_summary(db: Session = Depends(get_db)):
     """获取资金汇总数据"""
     meta = db.query(CapitalMeta).filter(CapitalMeta.id == 1).first()
+    adjustment_sum = db.query(func.sum(HistoricalAdjustment.amount)).scalar() or 0
     if not meta:
-        return CapitalSummaryResponse()
+        return CapitalSummaryResponse(
+            total_adjustment_cny=float(adjustment_sum),
+        )
     return CapitalSummaryResponse(
         total_invested_cny=float(meta.total_invested_cny),
         total_historical_pnl_cny=float(meta.total_historical_pnl_cny),
         total_position_value_cny=float(meta.total_position_value_cny),
+        total_adjustment_cny=float(adjustment_sum),
     )
 
 
@@ -46,7 +52,7 @@ def get_capital_summary(db: Session = Depends(get_db)):
 
 @router.get("/flows", response_model=List[CapitalFlowResponse])
 def list_capital_flows(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(1000, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):

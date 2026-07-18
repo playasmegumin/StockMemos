@@ -31,3 +31,4 @@ class CapitalSummaryResponse(BaseModel):
     total_invested_cny: float = Field(0.0, description="总投入金额(CNY)")
     total_historical_pnl_cny: float = Field(0.0, description="历史总盈亏(CNY)")
     total_position_value_cny: float = Field(0.0, description="总持仓金额(CNY)")
+    total_adjustment_cny: float = Field(0.0, description="历史盈亏调整偏移值(CNY)")
