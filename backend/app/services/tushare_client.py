@@ -134,19 +134,6 @@ class TushareClient:
             return df.where(pd.notnull(df), None).iloc[0].to_dict()
         return None
 
-    def get_stock_basic_by_name(
-        self, name: str
-    ) -> Optional[Dict[str, Any]]:
-        """按股票名称查询股票代码（如 中国卫星 → 600118.SH）"""
-        df = self._call(
-            "stock_basic",
-            name=name,
-            fields="ts_code,symbol,name,exchange",
-        )
-        if df is not None and not df.empty:
-            return df.where(pd.notnull(df), None).iloc[0].to_dict()
-        return None
-
     def get_daily_kline(
         self,
         stock_code: str,

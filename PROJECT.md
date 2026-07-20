@@ -1,6 +1,6 @@
 # StockMemos — 项目文档
 
-> **文档版本**: 0.15.0
+> **文档版本**: 0.16.0
 > **文档职责**: 本文件是项目唯一的架构说明书、用户手册和开发需求文档。任何功能变更必须先修改此文档，再修改代码。
 > **文档驱动开发原则**: 后续每次迭代（Milestone / 功能模块）必须遵循「先更新本文档 → 再实现代码 → 再验证文档与代码一致」的流程。
 
@@ -71,51 +71,6 @@
 | YFinanceProvider | HK/US | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
 
 此项设计待后续 Change 推进，详见 [1.1 数据源 Provider](#11-投资备忘持仓总览增强数据源-provider等未来功能)。
-
-### 2.6 OCR 截图识别模块（同花顺）
-
-独立于 Docker 的宿主机 CLI 工具，用于将券商 App 截图转为结构化 JSON，对接备份导入系统。
-
-**架构：**
-截图 → OCR Engine → 结构化 JSON → 备份导入系统
-
-**OCR 引擎：**
-
-| 引擎 | 类型 | 安装 |
-|------|------|------|
-| Qwen-VL API（默认） | 远端 LLM API | `pip install` 即用，需 `DASHSCOPE_API_KEY` |
-| RapidOCR ONNX（备选） | 本地 ONNX Runtime | `pip install rapidocr_onnxruntime` |
-
-**截图类型：**
-
-| 类型 | `--type` | 解析内容 | 输出格式 |
-|------|----------|---------|---------|
-| 同花顺交易流水 | `trade` | 日期、操作、价格、数量、税费 | `transactions.json` |
-| 同花顺银证转账 | `capital` | 日期、类型（转入/转出）、金额 | `capital_flows.json` |
-
-**使用方法：**
-```bash
-cd backend
-python -m app.ocr.cli --image stock.jpg --type trade --engine qwen --stock-code 600118 --exchange SH
-python -m app.ocr.cli --images ./screenshots/*.jpg --type capital --engine rapid
-python -m app.ocr.cli --image money.jpg --type capital --output ./results
-```
-
-**代码结构：**
-```
-backend/app/ocr/
-├── cli.py                     # CLI 入口
-├── base.py                    # OCRResult + BaseOCREngine
-├── qwen_engine.py             # Qwen-VL API 引擎（首选，结构化 JSON 输出）
-├── rapid_engine.py            # RapidOCR ONNX 引擎（备选）
-├── paddle_engine.py           # PaddleOCR 引擎（备选，需 PaddlePaddle）
-├── parsers/
-│   ├── base.py                # BaseParser 坐标分组
-│   ├── huase_trade.py         # 交易流水坐标解析器
-│   └── huase_capital.py       # 银证转账坐标解析器
-├── __init__.py
-└── __main__.py
-```
 
 ---
 
@@ -789,6 +744,6 @@ docker compose build backend  # 重新构建后端
 | 0.12.0 | 2026-07-13 | 平台可用性监测：诊断 API（8 项串行检测 + scope 参数）、设置页只读汇率 + 双区面板（数据源/大模型）、localStorage 持久化 + VERSION 文件 | Agent |
 | 0.12.1 | 2026-07-13 | 文档更新：新增 2.5 数据源 Provider 能力抽象接口（未来规划）、约束 10、AKShareProvider 完成度现状记录 | Agent |
 | **0.14.0** | **2026-07-14** | **数据备份系统：POST /api/backup/export 导出 ZIP（StreamingResponse）、POST /api/backup/import 导入（内存+DB 双层去重 + Stock position/pnl 自动重算）、CLI 脚本（argparse）、前端设置页备份模块（复选框+导出/导入+自动刷新）。Milestone 9 完成。** | **Agent** |
-| **0.15.0** | **2026-07-14** | **同花顺截图 OCR 识别模块：Qwen-VL API 引擎（结构化 JSON 直出）+ RapidOCR 引擎（坐标解析备选）。支持交易流水（7/7）和银证转账（9/9）截图全量解析。宿主机 CLI 工具，输出对接备份导入系统。** | **Agent** |
+| **0.15.0** | **2026-07-14** | **曾引入同花顺截图 OCR 实验模块；该方案因金融数据入口可靠性与维护成本问题，已在 0.16.0 移除。** | **Agent** |
+| **0.16.0** | **2026-07-20** | **移除废弃的同花顺截图 OCR 模块（`backend/app/ocr/`）。清理 `tushare_client.py` 中 OCR-only 的 `get_stock_basic_by_name` 方法。备份导入（`POST /api/backup/import`）仍是截图数据的推荐接入方式。** | **Agent** |
 | **0.13.0** | **2026-07-13** | **平台可用性监测 + AKShare 数据源扩展 + K 线布局优化：诊断 API/面板、只读汇率、AKShare 港美股支持、Provider 能力抽象、VERSION 文件、K 线图容器自适应。Milestone 10 完成。** | **Agent** |
-
