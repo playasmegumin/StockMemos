@@ -20,6 +20,10 @@ class HistoricalAdjustment(Base):
         Numeric(18, 4), nullable=False,
         comment="调整金额（正=盈利，负=亏损）",
     )
+    currency: Mapped[str] = mapped_column(
+        String(3), nullable=False, default="CNY", server_default="CNY",
+        comment="币种代码（CNY/HKD/USD）",
+    )
     note: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True,
         comment="备注说明",

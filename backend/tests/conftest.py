@@ -44,6 +44,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.database import Base, get_db
+from app.models.exchange_rate import ExchangeRate
 from app.main import app
 
 
@@ -58,8 +59,15 @@ def override_get_db():
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    """每个测试前重建表"""
+    """每个测试前重建表并注入默认汇率"""
     Base.metadata.create_all(bind=_test_engine)
+    # Seed default exchange rates so multi-currency operations work
+    session = _test_session_local()
+    session.add(ExchangeRate(currency="CNY", rate_to_cny=1.0))
+    session.add(ExchangeRate(currency="HKD", rate_to_cny=0.92))
+    session.add(ExchangeRate(currency="USD", rate_to_cny=7.25))
+    session.commit()
+    session.close()
     yield
     Base.metadata.drop_all(bind=_test_engine)
 

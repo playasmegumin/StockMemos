@@ -51,6 +51,7 @@ describe('HistoricalAdjustment API', () => {
   const sampleAdjustment: HistoricalAdjustment = {
     id: adjustmentId,
     amount: 5000,
+    currency: 'HKD',
     note: '修正测试',
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-02T00:00:00Z',
@@ -58,6 +59,7 @@ describe('HistoricalAdjustment API', () => {
 
   const samplePayload: AdjustmentPayload = {
     amount: 5000,
+    currency: 'HKD',
     note: '修正测试',
   }
 
@@ -72,6 +74,7 @@ describe('HistoricalAdjustment API', () => {
         expect(result.data).toHaveLength(1)
         expect(result.data[0].id).toBe(adjustmentId)
         expect(result.data[0].amount).toBe(5000)
+        expect(result.data[0].currency).toBe('HKD')
         expect(result.data[0].note).toBe('修正测试')
       }
     })
@@ -105,7 +108,7 @@ describe('HistoricalAdjustment API', () => {
     it('POST /historical-adjustments returns error on validation failure', async () => {
       mock.onPost('/historical-adjustments').reply(422, { detail: 'Validation failed' })
 
-      const result = await createAdjustment({ amount: -1 })
+      const result = await createAdjustment({ amount: -1, currency: 'CNY' })
 
       expect(result.ok).toBe(false)
       if (!result.ok) {
@@ -115,10 +118,11 @@ describe('HistoricalAdjustment API', () => {
   })
 
   describe('updateAdjustment', () => {
-    const updatePayload: AdjustmentPayload = { amount: 6000, note: '更新修正' }
+    const updatePayload: AdjustmentPayload = { amount: 6000, currency: 'USD', note: '更新修正' }
     const updatedAdjustment: HistoricalAdjustment = {
       ...sampleAdjustment,
       amount: 6000,
+      currency: 'USD',
       note: '更新修正',
     }
 
@@ -130,6 +134,7 @@ describe('HistoricalAdjustment API', () => {
       expect(result.ok).toBe(true)
       if (result.ok) {
         expect(result.data.amount).toBe(6000)
+        expect(result.data.currency).toBe('USD')
         expect(result.data.note).toBe('更新修正')
       }
     })

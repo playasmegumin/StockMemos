@@ -53,7 +53,10 @@
     <!-- Historical Adjustment Section -->
     <section>
       <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-medium">历史盈亏调整</h3>
+        <div>
+          <h3 class="text-lg font-medium">历史盈亏调整</h3>
+          <p class="adjustment-hint">汇总按当前配置汇率折算为人民币</p>
+        </div>
         <t-button @click="openAddAdjustment">添加记录</t-button>
       </div>
 
@@ -170,6 +173,9 @@
             style="width: 100%"
           />
         </t-form-item>
+        <t-form-item label="币种" name="currency" :rules="[{ required: true }]">
+          <t-select v-model="adjustmentForm.currency" :options="currencyOptions" />
+        </t-form-item>
         <t-form-item label="备注" name="note">
           <t-textarea v-model="adjustmentForm.note" placeholder="来源说明" :rows="2" />
         </t-form-item>
@@ -191,7 +197,12 @@ import {
   updateAdjustment,
   deleteAdjustment,
 } from '@/api/capital'
-import type { CapitalSummary, CapitalFlow, HistoricalAdjustment } from '@/api/capital'
+import type {
+  AdjustmentCurrency,
+  CapitalSummary,
+  CapitalFlow,
+  HistoricalAdjustment,
+} from '@/api/capital'
 import { fmtAmount } from '@/utils/format'
 
 const summary = reactive<CapitalSummary>({
@@ -286,6 +297,7 @@ const adjustmentLoading = ref(false)
 const adjustmentColumns = [
   { colKey: 'created_at', title: '创建时间', width: 180 },
   { colKey: 'amount', title: '金额', width: 150, cell: 'adjustmentAmount' },
+  { colKey: 'currency', title: '币种', width: 80 },
   { colKey: 'note', title: '备注', ellipsis: true },
   { colKey: 'action', title: '操作', width: 120, cell: 'adjustmentAction' },
 ]
@@ -390,8 +402,14 @@ async function handleDelete(row: CapitalFlow) {
 const adjustmentDialogVisible = ref(false)
 const adjustmentSaving = ref(false)
 const editingAdjustmentId = ref<string | null>(null)
+const currencyOptions: Array<{ label: string; value: AdjustmentCurrency }> = [
+  { label: 'CNY 人民币', value: 'CNY' },
+  { label: 'HKD 港币', value: 'HKD' },
+  { label: 'USD 美元', value: 'USD' },
+]
 const adjustmentForm = reactive({
   amount: 0,
+  currency: 'CNY' as AdjustmentCurrency,
   note: '',
 })
 
@@ -403,6 +421,7 @@ function openAddAdjustment() {
 function openEditAdjustment(row: HistoricalAdjustment) {
   editingAdjustmentId.value = row.id
   adjustmentForm.amount = row.amount
+  adjustmentForm.currency = row.currency
   adjustmentForm.note = row.note || ''
   adjustmentDialogVisible.value = true
 }
@@ -415,6 +434,7 @@ async function handleSaveAdjustment() {
   adjustmentSaving.value = true
   const payload = {
     amount: adjustmentForm.amount,
+    currency: adjustmentForm.currency,
     note: adjustmentForm.note || undefined,
   }
   const editingId = editingAdjustmentId.value
@@ -436,6 +456,7 @@ async function handleSaveAdjustment() {
 function resetAdjustmentForm() {
   editingAdjustmentId.value = null
   adjustmentForm.amount = 0
+  adjustmentForm.currency = 'CNY'
   adjustmentForm.note = ''
 }
 
@@ -483,6 +504,11 @@ onMounted(() => {
   font-size: 28px;
   font-weight: 700;
   color: #1a1a2e;
+}
+.adjustment-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #8B8B9A;
 }
 .text-red-600 { color: #e53e3e; }
 .text-green-600 { color: #38a169; }

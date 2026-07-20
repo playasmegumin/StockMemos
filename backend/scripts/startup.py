@@ -2,10 +2,12 @@
 """Application startup script — runs before uvicorn.
 
 Steps:
-  1. Create all ORM tables (models must be imported so SQLAlchemy can see them)
-  2. Stamp alembic to head (skip broken old migrations, schema managed by ORM)
+  1. Import models so SQLAlchemy can discover ORM tables
+  2. Detect whether the DB already has an alembic_version table:
+       - existing DB  → run `alembic upgrade head` (apply pending migrations)
+       - fresh DB     → create_all() then `alembic stamp head`
   3. Create DB triggers (not handled by SQLAlchemy ORM)
-  4. Seed exchange_rates table
+  4. Seed exchange_rates + capital_meta row
   5. Start uvicorn
 """
 
@@ -21,12 +23,20 @@ sys.path.insert(0, _backend_dir)
 from app.database import Base, engine
 import app.models  # noqa — registers all ORM tables
 
-Base.metadata.create_all(bind=engine)
-print("[startup] ORM tables created/verified")
+from sqlalchemy import inspect as sa_inspect
 
-# Step 2: stamp alembic to head (schema managed by ORM, migrations for drift detection)
-subprocess.run(["alembic", "stamp", "head"], check=True)
-print("[startup] alembic stamped to head")
+_is_fresh = not sa_inspect(engine).has_table("alembic_version")
+
+if _is_fresh:
+    # Fresh DB — bootstrap schema via ORM, stamp to avoid replaying broken migrations
+    Base.metadata.create_all(bind=engine)
+    print("[startup] Fresh DB — ORM tables created")
+    subprocess.run(["alembic", "stamp", "head"], check=True)
+    print("[startup] Fresh DB — alembic stamped to head")
+else:
+    # Existing DB — apply pending migrations incrementally (e.g. add currency column)
+    subprocess.run(["alembic", "upgrade", "head"], check=True)
+    print("[startup] Existing DB — alembic upgrade head applied")
 
 # Step 3: create DB triggers (SQLAlchemy ORM does not manage triggers)
 triggers_sql = """

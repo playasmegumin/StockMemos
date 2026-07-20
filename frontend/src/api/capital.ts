@@ -24,9 +24,12 @@ export interface CapitalFlowCreate {
   note?: string
 }
 
+export type AdjustmentCurrency = 'CNY' | 'HKD' | 'USD'
+
 export interface HistoricalAdjustment {
   id: string
   amount: number
+  currency: AdjustmentCurrency
   note: string | null
   created_at: string | null
   updated_at: string | null
@@ -34,6 +37,7 @@ export interface HistoricalAdjustment {
 
 export interface AdjustmentPayload {
   amount: number
+  currency: AdjustmentCurrency
   note?: string
 }
 

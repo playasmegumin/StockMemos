@@ -34,7 +34,36 @@ router = APIRouter()
 def get_capital_summary(db: Session = Depends(get_db)):
     """获取资金汇总数据"""
     meta = db.query(CapitalMeta).filter(CapitalMeta.id == 1).first()
-    adjustment_sum = db.query(func.sum(HistoricalAdjustment.amount)).scalar() or 0
+
+    #  Pre-check: any adjustment with a missing or non-positive exchange rate?
+    orphan_count = (
+        db.query(func.count(HistoricalAdjustment.id))
+        .outerjoin(ExchangeRate, HistoricalAdjustment.currency == ExchangeRate.currency)
+        .filter(
+            (ExchangeRate.currency.is_(None))
+            | (ExchangeRate.rate_to_cny <= 0)
+            | (ExchangeRate.rate_to_cny.is_(None))
+        )
+        .scalar()
+        or 0
+    )
+    if orphan_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"无法计算汇总：{orphan_count} 条历史盈亏调整记录缺少有效汇率配置。"
+                "请通过 PUT /api/capital/exchange-rates/{currency} 补全汇率"
+            ),
+        )
+
+    # Multi-currency aggregation: SUM(amount * rate_to_cny) via INNER JOIN
+    adjustment_sum = (
+        db.query(func.sum(HistoricalAdjustment.amount * ExchangeRate.rate_to_cny))
+        .join(ExchangeRate, HistoricalAdjustment.currency == ExchangeRate.currency)
+        .scalar()
+        or 0
+    )
+
     if not meta:
         return CapitalSummaryResponse(
             total_adjustment_cny=float(adjustment_sum),
