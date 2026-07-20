@@ -163,6 +163,22 @@ function handleRemoveTag(tagId: string) {
   stockStore.removeTag(tagId)
 }
 
+async function refresh() {
+  if (!stock.value) return
+  const [priceR, txnR] = await Promise.all([
+    getPrice(stock.value.id),
+    getTransactionsByStock(stock.value.id),
+  ])
+  if (priceR.ok) {
+    currentPriceData.value = priceR.data
+  }
+  if (txnR.ok && txnR.data) {
+    txCount.value = txnR.data.length
+  }
+}
+
+defineExpose({ refresh })
+
 onMounted(async () => {
   if (!stock.value) return
   const [priceR, txnR] = await Promise.all([

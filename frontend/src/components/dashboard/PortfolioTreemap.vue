@@ -43,6 +43,7 @@ use([TreemapChart, TooltipComponent, CanvasRenderer])
 
 const props = defineProps<{
   stocks: Stock[]
+  refreshTrigger?: number
 }>()
 
 const loading = ref(true)
@@ -255,23 +256,31 @@ const chartOption = computed(() => {
 
 async function loadData() {
   loading.value = true
-  const pv = await computeAllPositionValues(props.stocks)
-  positionValues.value = pv
+  try {
+    const pv = await computeAllPositionValues(props.stocks)
+    positionValues.value = pv
 
-  const tagMap = new Map<string, string[]>()
-  const activeStocks = props.stocks.filter(s => s.position > 0)
-  const analyzeResults = await Promise.all(activeStocks.map(s => getAnalyze(s.id)))
-  await Promise.all(analyzeResults.map(async (r, i) => {
-    if (!r.ok) return
-    const tagsR = await getTags(r.data.id)
-    if (tagsR.ok) tagMap.set(activeStocks[i].id, tagsR.data.map(t => t.tag))
-  }))
-  stockTags.value = tagMap
-  loading.value = false
-  // Force chart resize after data loads to ensure correct layout
-  nextTick(() => { chartRef.value?.resize() })
+    const tagMap = new Map<string, string[]>()
+    const activeStocks = props.stocks.filter(s => s.position > 0)
+    const analyzeResults = await Promise.all(activeStocks.map(s => getAnalyze(s.id)))
+    await Promise.all(analyzeResults.map(async (r, i) => {
+      if (!r.ok) return
+      const tagsR = await getTags(r.data.id)
+      if (tagsR.ok) tagMap.set(activeStocks[i].id, tagsR.data.map(t => t.tag))
+    }))
+    stockTags.value = tagMap
+  } catch {
+    // Data loading failed — keep existing positionValues and stockTags intact
+  } finally {
+    loading.value = false
+    // Force chart resize after data loads to ensure correct layout
+    nextTick(() => { chartRef.value?.resize() })
+  }
 }
 
 onMounted(loadData)
-watch(() => props.stocks.length, () => { if (props.stocks.length > 0) loadData() })
+// Refresh trigger prop — parent bumps this counter to force a reload
+watch(() => props.refreshTrigger, () => { if (props.stocks.length > 0) loadData() })
+
+defineExpose({ loadData, loading, positionValues })
 </script>

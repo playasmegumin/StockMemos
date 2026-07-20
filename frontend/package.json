@@ -23,7 +23,9 @@
   "devDependencies": {
     "@unocss/postcss": "^66.0.0",
     "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/test-utils": "^2.4.11",
     "axios-mock-adapter": "^2.1.0",
+    "happy-dom": "^15.11.7",
     "puppeteer-core": "^25.3.0",
     "typescript": "^5.7.0",
     "unocss": "^66.0.0",

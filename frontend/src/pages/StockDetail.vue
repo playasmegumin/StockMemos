@@ -20,7 +20,7 @@
 
     <!-- Left panel -->
     <div class="col-span-1 row-span-1 overflow-auto">
-      <InfoPanel />
+      <InfoPanel ref="infoPanelRef" />
     </div>
 
     <!-- Right side -->
@@ -31,7 +31,7 @@
       <div class="bg-white rounded-lg shadow-sm p-4 overflow-y-auto min-h-0">
         <t-tabs default-value="transactions" size="medium">
           <t-tab-panel value="transactions" label="交易记录">
-            <TransactionList />
+            <TransactionList @changed="handleTransactionsChanged" />
           </t-tab-panel>
           <t-tab-panel value="reports" label="分析报告">
             <ReportList />
@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStockStore } from '@/stores/stock'
 import { useKlineStore } from '@/stores/kline'
@@ -84,6 +84,14 @@ const stockStore = useStockStore()
 const klineStore = useKlineStore()
 
 const stockId = route.params.id as string
+const infoPanelRef = ref<{ refresh: () => Promise<void> } | null>(null)
+
+async function handleTransactionsChanged() {
+  await stockStore.refreshPrice()
+  if (infoPanelRef.value?.refresh) {
+    await infoPanelRef.value.refresh()
+  }
+}
 
 async function loadData() {
   await Promise.all([

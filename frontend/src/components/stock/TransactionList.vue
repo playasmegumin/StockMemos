@@ -81,6 +81,10 @@ import TransactionEditor from './TransactionEditor.vue'
 
 const stockStore = useStockStore()
 
+const emit = defineEmits<{
+  changed: []
+}>()
+
 const transactions = ref<Transaction[]>([])
 const loading = ref(false)
 const showEditor = ref(false)
@@ -105,14 +109,17 @@ const columns = [
 async function fetchTransactions() {
   if (!stockStore.stock) return
   loading.value = true
-  const r = await getTransactionsByStock(stockStore.stock.id)
-  if (r.ok) {
-    transactions.value = r.data
-    pagination.total = r.data.length
-  } else {
-    MessagePlugin.error(r.error || '加载交易记录失败')
+  try {
+    const r = await getTransactionsByStock(stockStore.stock.id)
+    if (r.ok) {
+      transactions.value = r.data
+      pagination.total = r.data.length
+    } else {
+      MessagePlugin.error(r.error || '加载交易记录失败')
+    }
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 function openAddEditor() {
@@ -133,6 +140,7 @@ function closeEditor() {
 async function handleSaved() {
   closeEditor()
   await fetchTransactions()
+  emit('changed')
 }
 
 function handlePageChange(pageInfo: any) {
@@ -147,13 +155,18 @@ function handleDelete(row: Transaction) {
     cancelBtn: '取消',
     theme: 'danger',
     onConfirm: async () => {
-      const r = await deleteTransaction(row.id)
-      if (r.ok) {
-        MessagePlugin.success('交易已删除')
-        confirmDia.hide()
-        await fetchTransactions()
-      } else {
-        MessagePlugin.error(r.error || '删除失败')
+      try {
+        const r = await deleteTransaction(row.id)
+        if (r.ok) {
+          MessagePlugin.success('交易已删除')
+          await fetchTransactions()
+          emit('changed')
+        } else {
+          MessagePlugin.error(r.error || '删除失败')
+        }
+      } catch {
+        MessagePlugin.error('删除失败')
+      } finally {
         confirmDia.hide()
       }
     },
@@ -162,6 +175,8 @@ function handleDelete(row: Transaction) {
     },
   })
 }
+
+defineExpose({ handleSaved, handleDelete })
 
 onMounted(() => {
   if (stockStore.stock) {
